@@ -5,4 +5,4 @@
 *_run.log
 *_run1.log
 run_capture.log
-WSM-PROBE-LOG.TXT
+WSM-PROBE-LOG*.TXT
