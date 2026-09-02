@@ -1,113 +1,126 @@
-# QEMU setup / Налаштування QEMU
+# Налаштування QEMU
 
-Tuned to the owner's real machine from the start, per
-`docs/OWNER-HARDWARE-PROFILE.md`, rather than QEMU's generic defaults.
 Налаштовано під реальне залізо власника з самого початку, за
 `docs/OWNER-HARDWARE-PROFILE.md`, а не типовими значеннями QEMU.
 
-## What is actually matched / Що справді відповідає
+## Що справді відповідає
 
-| Real hardware (profile doc) | QEMU flag | Note |
+| Реальне залізо (профіль) | Прапорець QEMU | Примітка |
 |---|---|---|
-| Intel Core i5-6400, Skylake, family 6 model 94 | `-cpu Skylake-Client-v1` | closest QEMU CPU model name to this exact microarchitecture; still an emulated approximation, not the real silicon |
-| 1 socket, 4 cores, 4 logical processors, no SMT | `-smp 4,sockets=1,cores=4,threads=1` | topology matched exactly: 4 cores, 1 thread/core |
-| x86_64 little-endian | (implicit: `qemu-system-x86_64`) | — |
-| chipset target | `-machine q35` | modern, UEFI-friendly; matches the prior lab's own choice, not owner-specific hardware |
-| M1/M2 "deliberately small fixed heap" guidance | `-m 128M` (default, overridable via `WSM_OS_QEMU_MEM`) | VM RAM, not guest heap size — kept small on purpose at this stage |
-| Boot medium: Kingston `SNV2S1000G` NVMe SSD | `-device nvme,drive=...,serial=wsm-os-qemu-nvme0` | added 2026-09-02: the real machine boots from NVMe, not a generic/IDE drive — a storage driver later exercises the same device class the owner's machine actually presents. `serial=` is a placeholder label, not the real drive's serial number (deliberately excluded from this repo, same privacy stance as the profile doc) |
+| Intel Core i5-6400, Skylake, family 6 model 94 | `-cpu Skylake-Client-v1` | найближча модель CPU QEMU до цієї точної мікроархітектури; все одно емульоване наближення, не реальний кремній |
+| 1 сокет, 4 ядра, 4 логічні процесори, без SMT | `-smp 4,sockets=1,cores=4,threads=1` | топологія відтворена точно: 4 ядра, 1 потік/ядро |
+| x86_64 little-endian | (неявно: `qemu-system-x86_64`) | — |
+| ціль чипсету | `-machine q35` | сучасний, дружній до UEFI; збігається з вибором попередньої лабораторії, не специфічний для заліза власника |
+| M1/M2 настанова "навмисно мала фіксована купа" | `-m 128M` (типово, перевизначається через `WSM_OS_QEMU_MEM`) | RAM віртуальної машини, не guest-купа — навмисно мала на цьому етапі |
+| Носій завантаження: Kingston `SNV2S1000G` NVMe SSD | `-device nvme,drive=...,serial=wsm-os-qemu-nvme0` | додано 2026-09-02: реальна машина завантажується з NVMe, не з generic/IDE-диска — драйвер накопичувача пізніше матиме справу з тим самим класом пристрою, що й реально на машині власника. `serial=` — це умовна мітка, не реальний серійний номер диска (навмисно виключений з цього репозиторію, та сама позиція приватності, що й у профілі) |
 
-## What is honestly NOT matched / Що чесно НЕ відповідає
+## Що чесно НЕ відповідає
 
-- **KVM hardware passthrough is not available to this agent process,
-  and this is a real limit, not a gap that could be installed away.**
-  `/dev/kvm` exists; the real error, reproduced directly (2026-09-02):
-  `qemu-system-x86_64: -accel kvm: Could not access KVM kernel module:
-  Permission denied`. The current agent user is not in the `kvm` group
-  (`groups` → `agents users ollama`). This host does grant the agent
-  user full `sudo (ALL : ALL) ALL` (confirmed via `sudo -l`) — but sudo
-  here requires an interactive password this agent does not have and
-  will not attempt to obtain or bypass; a permission granted in chat
-  does not supply that password. Fixing this requires the owner (or
-  whoever holds that password) to run
-  `sudo usermod -aG kvm agents` on the host directly, followed by a new
-  login session for the group change to take effect. Both scripts
-  auto-detect KVM access (`[[ -r /dev/kvm && -w /dev/kvm ]]`) and fall
-  back to `-accel tcg` rather than failing or silently claiming
-  acceleration they don't have.
-- **TCG cannot emulate every Skylake-Client-v1 CPUID feature.**
-  Empirically confirmed running `scripts/qemu-selftest.sh` (local run,
-  2026-09-02, QEMU 10.2.1): TCG prints warnings for `pcid`,
-  `tsc-deadline`, `hle`, `invpcid`, `rtm`, `xsavec` — these bits are part
-  of the requested Skylake-Client-v1 model but TCG doesn't implement
-  them. QEMU still starts and runs; nothing crashes. Any wsm-os code that
-  ends up depending on one of these specific features would misbehave
-  under this configuration and must be caught by a real boot witness, not
-  assumed away.
-- **AVX2/BMI2** are real, available features on the owner's actual CPU
-  (see the profile doc's ISA feature list) but the profile's own
-  architecture decision #5 defers using them until measured — this QEMU
-  setup does not change that decision either way.
-- **This is still QEMU, not the physical machine.** Per the profile doc's
-  own consequence section: "the first boot remains QEMU-only." Physical
-  hardware execution is separate future work requiring its own
-  authorization, same as it was for the prior lab.
+- **Апаратне прискорення KVM недоступне цьому агентському процесу, і
+  це реальне обмеження, не прогалина, яку можна закрити встановленням
+  пакета.** `/dev/kvm` існує; реальна помилка, відтворена напряму
+  (2026-09-02): `qemu-system-x86_64: -accel kvm: Could not access KVM
+  kernel module: Permission denied`. Поточний юзер агента не в групі
+  `kvm` (`groups` → `agents users ollama`). Цей хост дає юзеру агента
+  повний `sudo (ALL : ALL) ALL` (підтверджено через `sudo -l`) — але
+  sudo тут вимагає інтерактивного пароля, якого в агента нема і який
+  він не буде намагатись отримати чи обійти; дозвіл, наданий у чаті,
+  не дає цього пароля. Виправлення вимагає, щоб власник (чи хтось із
+  паролем) запустив `sudo usermod -aG kvm agents` напряму на хості, а
+  потім новий логін-сеанс, щоб зміна групи набула чинності. Обидва
+  скрипти автоматично визначають доступ до KVM (`[[ -r /dev/kvm && -w
+  /dev/kvm ]]`) і падають назад на `-accel tcg`, а не провалюються чи
+  мовчки прикидаються прискоренням, якого нема.
+- **TCG не вміє емулювати кожну CPUID-функцію моделі Skylake-Client-v1.**
+  Емпірично підтверджено запуском `scripts/qemu-selftest.sh` (локальний
+  запуск, 2026-09-02, QEMU 10.2.1): TCG видає попередження для `pcid`,
+  `tsc-deadline`, `hle`, `invpcid`, `rtm`, `xsavec` — ці біти є частиною
+  запитаної моделі Skylake-Client-v1, але TCG їх не реалізує. QEMU все
+  одно запускається й працює; нічого не падає. Будь-який код wsm-os,
+  що зрештою покладеться на одну з цих конкретних функцій, повівся б
+  неправильно за цієї конфігурації, і це має бути впіймано реальним
+  свідком завантаження, а не прийнято на віру.
+- **AVX2/BMI2** — реальні, доступні функції на справжньому CPU
+  власника (див. список ISA-функцій у профілі), але власне архітектурне
+  рішення №5 профілю відкладає їх використання до вимірювання — це
+  налаштування QEMU не змінює це рішення в жоден бік.
+- **Це досі QEMU, не фізична машина.** За власним розділом наслідків
+  профілю: "перший boot лишається лише в QEMU." Виконання на реальному
+  залізі — окрема майбутня робота, що потребує власної авторизації, як
+  і для попередньої лабораторії.
 
-## UEFI firmware / OVMF
+## UEFI-прошивка / OVMF
 
-The prior lab (`wsm-os-lisp`) never had OVMF firmware available in its
-Guix profile (`find` over its store profile came up empty). This repo's
-`manifest.scm` now declares `ovmf-x86-64` (a real Guix package,
-confirmed by `guix build ovmf-x86-64` — outputs
-`ovmf_code_x64.bin`/`ovmf_vars_x64.bin`/`Shell_x64.efi`), so UEFI boot
-work does not start from that same gap.
+Попередня лабораторія (`wsm-os-lisp`) ніколи не мала прошивки OVMF
+доступної у своєму Guix-профілі (`find` по її store-профілю нічого не
+знайшов). `manifest.scm` цього репозиторію тепер оголошує `ovmf-x86-64`
+(реальний Guix-пакет, підтверджено через `guix build ovmf-x86-64` —
+дає `ovmf_code_x64.bin`/`ovmf_vars_x64.bin`/`Shell_x64.efi`), тож робота
+з UEFI-завантаженням не починається з тієї самої прогалини.
 
-`scripts/qemu-uefi-selftest.sh` runs the same hardware-tuned flags
-against real OVMF with no boot image. Empirically confirmed (2026-09-02,
-local run, corrected from an earlier false "no output" read that was an
-artifact of output buffering in a manual test, not a real silence): OVMF
-does render console output over the serial chardev — ANSI/VT100 escape
-sequences followed by an automatic `>>Start PXE over IPv4.` network-boot
-attempt, since no bootable device is attached. This confirms firmware
-load and console reachability; it does not exercise boot-menu
-interaction or an actual OS boot, since neither exists yet.
+`scripts/qemu-uefi-selftest.sh` запускає ті самі налаштовані під залізо
+прапорці проти реального OVMF без образу завантаження. Емпірично
+підтверджено (2026-09-02, локальний запуск, виправлено після раннього
+хибного прочитання "нема виводу", яке було артефактом буферизації в
+ручному тесті, а не реальною тишею): OVMF таки рендерить консольний
+вивід через serial-chardev — ANSI/VT100 escape-послідовності, за якими
+йде автоматична спроба мережевого завантаження `>>Start PXE over
+IPv4.`, оскільки жодного завантажувального пристрою не підключено. Це
+підтверджує завантаження прошивки й досяжність консолі; це не
+випробовує взаємодію з меню завантаження чи реальний boot ОС, оскільки
+жодного з них ще не існує.
 
-## Bug found and fixed while verifying this pass
+## Знайдений і виправлений баг під час перевірки цього проходу
 
-`scripts/run-qemu.sh` was missing `-monitor none`, which made every real
-invocation fail immediately with `qemu-system-x86_64: cannot use stdio by
-multiple character devices` (the default QEMU monitor and the explicit
-serial chardev both claimed stdio). This was a pre-existing defect, not
-introduced by the NVMe change — it was only caught because this pass
-actually ran the script end-to-end with a throwaway image instead of
-only reasoning about the flags. Fixed by adding `-monitor none`, then
-re-run and confirmed clean: with the fix, firmware now reports "Boot
-failed: not a bootable disk" for the attached (blank) NVMe device before
-falling through to CD-ROM/PXE, proving the device is actually recognized
-as a boot candidate, not merely present and ignored.
+У `scripts/run-qemu.sh` бракувало `-monitor none`, що робило кожен
+реальний виклик миттєво провальним з `qemu-system-x86_64: cannot use
+stdio by multiple character devices` (типовий монітор QEMU і явний
+serial-chardev обидва претендували на stdio). Це був наявний раніше
+дефект, не внесений зміною NVMe — його впіймали тільки тому, що цей
+прохід реально прогнав скрипт наскрізь з тимчасовим образом, а не лише
+міркував про прапорці. Виправлено додаванням `-monitor none`, потім
+перезапущено й підтверджено чисто: з виправленням прошивка тепер
+повідомляє "Boot failed: not a bootable disk" для підключеного
+(порожнього) NVMe-пристрою перш ніж перейти на CD-ROM/PXE, доводячи,
+що пристрій реально розпізнається як кандидат на завантаження, а не
+просто присутній і ігнорований.
 
-## Usage
+## Використання
 
-No wsm-os boot image exists in this repo yet (see the repo README).
-Three scripts exist so the QEMU configuration itself can be verified now,
-independent of that:
+Жодного образу завантаження wsm-os у цьому репозиторії ще нема (див.
+README репозиторію). Існує три скрипти, щоб можна було перевірити саме
+налаштування QEMU вже зараз, незалежно від цього:
 
 ```bash
-# Validates the hardware-tuned flags without any boot image.
+# Перевіряє налаштовані під залізо прапорці без жодного образу завантаження.
 scripts/qemu-selftest.sh
 
-# Validates the same flags against real OVMF UEFI firmware.
+# Перевіряє ті самі прапорці проти реальної UEFI-прошивки OVMF.
 scripts/qemu-uefi-selftest.sh
 
-# Once a real image exists:
+# Коли реальний образ з'явиться:
 scripts/run-qemu.sh path/to/image.raw
 ```
 
-All three read `QEMU_SYSTEM_X86_64`, `WSM_OS_QEMU_CPU`,
-`WSM_OS_QEMU_SMP`, `WSM_OS_QEMU_MEM` as overridable environment
-variables (`qemu-uefi-selftest.sh` also reads `OVMF_CODE`/`OVMF_VARS`,
-defaulting to the `ovmf-x86-64` Guix package's own output); defaults are
-the hardware-matched values in the table above. `manifest.scm` declares
-`qemu` and `ovmf-x86-64` as this repo's reproducibility-boundary
-dependencies (Guix), per the ecosystem's own convention (root
-`CLAUDE.md` §9a) — it does not yet declare a Rust/bare-metal toolchain,
-since there is no kernel target in this repo yet.
+Усі три читають `QEMU_SYSTEM_X86_64`, `WSM_OS_QEMU_CPU`,
+`WSM_OS_QEMU_SMP`, `WSM_OS_QEMU_MEM` як перевизначувані змінні
+середовища (`qemu-uefi-selftest.sh` також читає `OVMF_CODE`/`OVMF_VARS`,
+типово вказуючи на власний вивід Guix-пакета `ovmf-x86-64`); типові
+значення — це узгоджені з залізом значення з таблиці вище. `manifest.scm`
+оголошує `qemu` і `ovmf-x86-64` як залежності межі відтворюваності
+цього репозиторію (Guix), за конвенцією екосистеми (кореневий
+`CLAUDE.md` §9a) — він ще не оголошує тулчейн Rust/bare-metal, оскільки
+в цьому репозиторії ще нема цілі ядра.
+
+---
+
+## QEMU setup (English, secondary)
+
+Tuned to the owner's real machine from the start, per
+`docs/OWNER-HARDWARE-PROFILE.md`, rather than QEMU's generic defaults.
+See the Ukrainian version above for the full detail (CPU model, SMP
+topology, chipset, memory, NVMe boot device matching; honest gaps —
+no KVM in this environment, TCG's incomplete CPUID emulation, AVX2/BMI2
+deferred, still virtual not physical; OVMF now available where it
+wasn't before; a real `-monitor none` bug found and fixed while
+verifying this pass; usage of the three self-test scripts).
