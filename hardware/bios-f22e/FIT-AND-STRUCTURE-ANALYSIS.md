@@ -49,6 +49,10 @@ CLI-компаньйона в цьому Guix-пакеті) — він відк�
 це було поза межами обсягу цього проходу. Її межі регіону —
 `STATIC-CONFIRMED`; її вміст — `not-yet-verified`.
 
+Загальна архітектура ME/CSME-родини (не вміст саме цих байтів) тепер
+`source-confirmed` проти офіційного білого паперу Intel — див.
+`../CSME-ARCHITECTURE.md`.
+
 ## 2/3. Інвентаризація модулів Firmware Volume / FFS — STATIC-CONFIRMED
 
 `uefi_firmware` розпарсив регіон BIOS на **12 Firmware Volume, що
