@@ -36,15 +36,22 @@ else
   echo "note: /dev/kvm not read/write-accessible to this process -- using TCG (software emulation), not KVM passthrough" >&2
 fi
 
-echo "wsm-os QEMU: cpu=$WSM_OS_QEMU_CPU smp=$WSM_OS_QEMU_SMP mem=$WSM_OS_QEMU_MEM accel=$accel" >&2
+echo "wsm-os QEMU: cpu=$WSM_OS_QEMU_CPU smp=$WSM_OS_QEMU_SMP mem=$WSM_OS_QEMU_MEM accel=$accel storage=nvme" >&2
+# Real machine boots from an NVMe SSD (Kingston SNV2S1000G, per
+# docs/OWNER-HARDWARE-PROFILE.md) -- emulate an actual NVMe controller
+# (-device nvme) instead of a generic/IDE drive, so anything wsm-os later
+# does at the storage-driver level is exercised against the same device
+# class the owner's real machine actually presents, not a QEMU default.
 timeout "$WSM_OS_QEMU_TIMEOUT" "$QEMU_SYSTEM_X86_64" \
   -machine q35 \
   -cpu "$WSM_OS_QEMU_CPU" \
   -smp "$WSM_OS_QEMU_SMP" \
   -m "$WSM_OS_QEMU_MEM" \
   -accel "$accel" \
-  -drive "format=raw,file=$image" \
+  -drive "if=none,format=raw,file=$image,id=wsm-nvm0" \
+  -device nvme,drive=wsm-nvm0,serial=wsm-os-qemu-nvme0 \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+  -monitor none \
   -chardev stdio,id=wsm-serial,mux=off,signal=off \
   -serial chardev:wsm-serial -nographic -no-reboot \
   "$@"

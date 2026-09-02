@@ -14,6 +14,7 @@ Tuned to the owner's real machine from the start, per
 | x86_64 little-endian | (implicit: `qemu-system-x86_64`) | — |
 | chipset target | `-machine q35` | modern, UEFI-friendly; matches the prior lab's own choice, not owner-specific hardware |
 | M1/M2 "deliberately small fixed heap" guidance | `-m 128M` (default, overridable via `WSM_OS_QEMU_MEM`) | VM RAM, not guest heap size — kept small on purpose at this stage |
+| Boot medium: Kingston `SNV2S1000G` NVMe SSD | `-device nvme,drive=...,serial=wsm-os-qemu-nvme0` | added 2026-09-02: the real machine boots from NVMe, not a generic/IDE drive — a storage driver later exercises the same device class the owner's machine actually presents. `serial=` is a placeholder label, not the real drive's serial number (deliberately excluded from this repo, same privacy stance as the profile doc) |
 
 ## What is honestly NOT matched / Що чесно НЕ відповідає
 
@@ -69,6 +70,20 @@ sequences followed by an automatic `>>Start PXE over IPv4.` network-boot
 attempt, since no bootable device is attached. This confirms firmware
 load and console reachability; it does not exercise boot-menu
 interaction or an actual OS boot, since neither exists yet.
+
+## Bug found and fixed while verifying this pass
+
+`scripts/run-qemu.sh` was missing `-monitor none`, which made every real
+invocation fail immediately with `qemu-system-x86_64: cannot use stdio by
+multiple character devices` (the default QEMU monitor and the explicit
+serial chardev both claimed stdio). This was a pre-existing defect, not
+introduced by the NVMe change — it was only caught because this pass
+actually ran the script end-to-end with a throwaway image instead of
+only reasoning about the flags. Fixed by adding `-monitor none`, then
+re-run and confirmed clean: with the fix, firmware now reports "Boot
+failed: not a bootable disk" for the attached (blank) NVMe device before
+falling through to CD-ROM/PXE, proving the device is actually recognized
+as a boot candidate, not merely present and ignored.
 
 ## Usage
 

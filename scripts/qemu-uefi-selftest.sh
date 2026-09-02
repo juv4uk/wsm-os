@@ -38,11 +38,13 @@ else
 fi
 
 vars_copy=$(mktemp /tmp/wsm-ovmf-vars.XXXXXX)
-trap 'rm -f "$vars_copy"' EXIT
+blank_image=$(mktemp /tmp/wsm-os-uefi-selftest-blank.XXXXXX)
+trap 'rm -f "$vars_copy" "$blank_image"' EXIT
 cp "$OVMF_VARS" "$vars_copy"
 chmod 600 "$vars_copy"
+truncate -s 1M "$blank_image"
 
-echo "wsm-os QEMU UEFI self-test: cpu=$WSM_OS_QEMU_CPU smp=$WSM_OS_QEMU_SMP mem=$WSM_OS_QEMU_MEM accel=$accel ovmf=$OVMF_CODE" >&2
+echo "wsm-os QEMU UEFI self-test: cpu=$WSM_OS_QEMU_CPU smp=$WSM_OS_QEMU_SMP mem=$WSM_OS_QEMU_MEM accel=$accel ovmf=$OVMF_CODE storage=nvme" >&2
 timeout 5 "$QEMU_SYSTEM_X86_64" \
   -machine q35 \
   -cpu "$WSM_OS_QEMU_CPU" \
@@ -51,9 +53,11 @@ timeout 5 "$QEMU_SYSTEM_X86_64" \
   -accel "$accel" \
   -drive "if=pflash,unit=0,format=raw,readonly=on,file=$OVMF_CODE" \
   -drive "if=pflash,unit=1,format=raw,file=$vars_copy" \
+  -drive "if=none,format=raw,file=$blank_image,id=wsm-nvm0" \
+  -device nvme,drive=wsm-nvm0,serial=wsm-os-qemu-nvme0 \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
   -monitor none \
   -chardev stdio,id=wsm-serial,mux=off,signal=off \
   -serial chardev:wsm-serial -nographic -no-reboot \
   || true
-echo "self-test: OVMF firmware loaded, qemu ran for its timeout window with no fatal error" >&2
+echo "self-test: OVMF firmware loaded, NVMe storage device attached, qemu ran for its timeout window with no fatal error" >&2
