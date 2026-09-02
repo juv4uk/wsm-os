@@ -42,6 +42,8 @@ IDTR           = base 0x0000000007E80000 limit 0x0000000000000FFF
 CPUID leaf 0   = max_leaf=13 vendor=GenuineIntel
 CPUID leaf 1   = signature=0x00000000000506E3 (family 6 model 94 stepping 3) initial_APIC_ID=0
 Live microcode revision (RDMSR 0x8B, read directly, pre-OS) = 0x0000000000000001
+TSC (RDTSC)    = t1=0x00000002D799C4D0 t2=0x00000002E7CD9A61 delta=271832465 cycles / 100ms Stall()
+  implied rate = 2718 cycles/us (2718 MHz-equivalent)
 Memory map     = 121 descriptors, 99232 total pages (387 MiB), 21889 conventional/usable pages (85 MiB)
 ACPI RSDP      = present
   address      = 0x0000000007B7E014
@@ -77,6 +79,16 @@ Framebuffer    = 0x0000000080000000  1280x800  pixels-per-scanline=1280  mode=0
   пам'яті** відображають власний віртуальний чипсет/GPU QEMU, не
   реальну Intel HD Graphics 530 власника чи реальну карту пам'яті
   E820/UEFI реальної машини.
+- **TSC-дельта (`~2718 MHz-еквівалент`) — таймінг TCG, не реальна
+  тактова частота кремнію.** Цікавий, але оманливий збіг: базова
+  частота реального i5-6400 власника — теж ~2.7 ГГц — але це QEMU/TCG
+  емулює час виконання інструкцій програмно, не через реальний
+  тактовий генератор; `Stall()` сам реалізований через host-таймер
+  QEMU, не через апаратний PIT/HPET, до якого TCG мав би пряму адресу.
+  Числовий збіг тут не варто читати як незалежне підтвердження
+  реальної частоти — це `LIVE-CONFIRMED` для віртуального середовища,
+  не `LIVE-CONFIRMED` для реального заліза, доки ця сама проба не
+  запущена фізично.
 
 Виконання цієї точної проби на фізичному залізі — окрема, авторизована
 власником майбутня робота — та сама межа, вже заявлена в

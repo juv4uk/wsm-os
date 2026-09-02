@@ -93,6 +93,20 @@ static inline void write_msr(UINT32 msr, UINT64 val) {
 static inline void do_cpuid(UINT32 leaf, UINT32 subleaf, UINT32 *a, UINT32 *b, UINT32 *c, UINT32 *d) {
   __asm__ __volatile__("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(leaf), "c"(subleaf));
 }
+/* RDTSC -- raw cycle count since the last CPU reset. A single read is
+ * a bare tally value, not yet meaningful on its own (see
+ * wsm/research/boot-time-extraction-attacked.md, Candidate 2: this is
+ * REPEAT already implemented in silicon). This probe reads it twice,
+ * separated by a measured Stall(), specifically so the delta -- not
+ * either raw value alone -- is what gets reported: turning the
+ * document's structural claim ("a raw count means nothing without a
+ * second reference point and a subtraction") into something actually
+ * measured on this hardware, not just argued. */
+static inline UINT64 read_tsc(void) {
+  UINT32 lo, hi;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return ((UINT64)hi << 32) | lo;
+}
 typedef struct { UINT16 limit; UINT64 base; } __attribute__((packed)) DtReg;
 static inline void read_gdtr(DtReg *r) { __asm__ __volatile__("sgdt %0" : "=m"(*r)); }
 static inline void read_idtr(DtReg *r) { __asm__ __volatile__("sidt %0" : "=m"(*r)); }
@@ -176,6 +190,14 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
   UINT32 live_ucode = read_live_microcode_revision();
   pstr(L"Live microcode revision (RDMSR 0x8B, read directly, pre-OS) = "); phex32(live_ucode); pnl();
+
+  UINT64 tsc1 = read_tsc();
+  BS->Stall(100000); /* 100ms, measured against Boot Services' own timer */
+  UINT64 tsc2 = read_tsc();
+  UINT64 tsc_delta = tsc2 - tsc1;
+  pstr(L"TSC (RDTSC)    = t1="); phex64(tsc1); pstr(L" t2="); phex64(tsc2);
+  pstr(L" delta="); pdec(tsc_delta); pstr(L" cycles / 100ms Stall()\r\n");
+  pstr(L"  implied rate = "); pdec(tsc_delta / 100000); pstr(L" cycles/us ("); pdec(tsc_delta / 100000); pstr(L" MHz-equivalent)\r\n");
 
   UINTN mapSize = 0, mapKey, descSize;
   UINT32 descVer;
