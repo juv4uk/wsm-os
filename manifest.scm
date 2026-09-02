@@ -1,2 +1,2 @@
 (specifications->manifest
- '("qemu"))
+ '("qemu" "ovmf-x86-64"))
