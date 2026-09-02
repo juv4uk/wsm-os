@@ -17,7 +17,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-[[ -s handoff-probe.efi ]] || { echo "handoff-probe.efi not found -- run ./build.sh first" >&2; exit 2; }
+efi_file="${1:-handoff-probe.efi}"
+[[ -s "$efi_file" ]] || { echo "$efi_file not found -- run ./build.sh [source.c] first" >&2; exit 2; }
 
 : "${ESP_IMAGE:=esp.img}"
 : "${ESP_SIZE_MIB:=64}"
@@ -35,6 +36,6 @@ echo "ESP partition starts at sector $start_sector (byte offset $offset)" >&2
 mformat -i "$ESP_IMAGE@@$offset" -F ::
 mmd -i "$ESP_IMAGE@@$offset" ::/EFI
 mmd -i "$ESP_IMAGE@@$offset" ::/EFI/BOOT
-mcopy -o -i "$ESP_IMAGE@@$offset" handoff-probe.efi ::/EFI/BOOT/BOOTX64.EFI
+mcopy -o -i "$ESP_IMAGE@@$offset" "$efi_file" ::/EFI/BOOT/BOOTX64.EFI
 
 echo "built: $(pwd)/$ESP_IMAGE (ESP at byte offset $offset)" >&2

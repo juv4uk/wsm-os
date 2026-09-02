@@ -9,10 +9,17 @@ stub, real and running, not a design sketch.
 ## Usage
 
 ```bash
-./build.sh      # clang + lld-link -> handoff-probe.efi (see below for why not gnu-efi's own toolchain)
-./make-esp.sh   # sgdisk + mtools -> esp.img (a real GPT-partitioned FAT32 disk image)
-./run-probe.sh  # boots esp.img under the wsm-os hardware-tuned QEMU/OVMF setup
+./build.sh [source.c]     # clang + lld-link -> <source>.efi (default: handoff-probe.c; see below for why not gnu-efi's own toolchain)
+./make-esp.sh [source.efi]  # sgdisk + mtools -> esp.img (a real GPT-partitioned FAT32 disk image; default: handoff-probe.efi)
+./run-probe.sh              # boots esp.img under the wsm-os hardware-tuned QEMU/OVMF setup
 ```
+
+Two probes exist:
+
+- `handoff-probe.c` -- reads and prints CPU/platform state (see below).
+- `exit-boundary-probe.c` -- crosses `ExitBootServices()` for real and
+  proves liveness on the other side with no UEFI API at all (see
+  "Step 10" below).
 
 All three scripts are idempotent and require no root/loop-mounting —
 `make-esp.sh` partitions and formats a plain file directly via `sgdisk`
@@ -74,6 +81,67 @@ QEMU/TCG visibly diverges from what the real silicon would report:
 Physical-hardware execution of this exact probe is separate,
 owner-authorized future work — same boundary already stated in
 `docs/QEMU-SETUP.md` for boot-image execution generally.
+
+**Three realities, not one** — the owner's own framing after this
+probe's first result: a STATIC firmware image (what F22e's flash
+actually contains), a LIVE/VIRTUAL machine (what this probe observes
+under QEMU+OVMF+TCG), and a LIVE/PHYSICAL machine (the real i5-6400 —
+genuinely unknown from here, and deliberately left as `?` rather than
+filled in by assumption). The live microcode revision reading back as
+`0x1` is a useful *negative* witness of exactly this: the probe read
+something real, but what it read has no claim to the same physical
+meaning a read on real silicon would carry. **`readable != physically
+representative`** — a rule this probe's own result, not just its
+design, established.
+
+## Step 10: crossing ExitBootServices() for real
+
+`exit-boundary-probe.c` answers the next question the owner posed
+directly: step 9 proved the machine could be *observed* through UEFI;
+step 10 proves control can *survive* the one boundary that actually
+matters — the moment Boot Services (and everything built on them,
+including the console `handoff-probe.c` prints through) stop being
+valid at all.
+
+The criterion, run for real, twice, from a clean rebuild both times
+(2026-09-02):
+
+```text
+BEFORE_EXIT          <- printed via UEFI ConOut, Boot Services still valid
+ExitBootServices()   <- a real call, real retry-on-stale-map-key loop, succeeded on the first attempt both runs
+AFTER_EXIT            <- printed via raw port I/O to the 16550 UART at 0x3F8, NO UEFI API used
+WSM_0_REACHED         <- same raw channel, after `cli` and nothing else
+```
+
+No OS, no allocator, no scheduler, no Lisp, no Rust runtime — not even
+canonical `t`. `()` itself is deliberately **not** encoded anywhere in
+this probe: choosing its representation is real design work belonging
+to `wsm`'s own architecture (see the owner's own `()`-preservation
+discipline in `wsm/docs/ROADMAP.md`), not something to rush inside a
+wsm-os lab probe just because a halt loop needed *something* to do.
+Reaching a point of pure, UEFI-independent control and proving it —
+nothing else — is the entire claim `WSM_0_REACHED` makes.
+
+**Architectural boundary, stated in the source file itself**: this
+probe — gnu-efi's headers, clang's COFF target, OVMF, QEMU, the whole
+UEFI bootstrap apparatus — stays in `wsm-os`, the laboratory. `wsm`
+itself should never need to know any of that exists. Where `wsm`'s own
+machine would actually begin is exactly the point right after
+`ExitBootServices()` succeeds in this file — not a separate directory
+to split into today (a single running boot flow cannot be split across
+two git repos at runtime), but the conceptual line future work should
+respect when something real gets built past this proof.
+
+**One more law this whole detour earned, not just the boundary
+experiment**: the earlier gnu-efi/GCC-16 incompatibility (below) looked
+exactly like "the UEFI probe prints garbage" — a symptom that could
+easily have been misread as something wrong with the machine, the
+disk, or the probe's own logic. Real bisection showed it was none of
+those; it was a toolchain-version mismatch. **A tool's failure is not
+a property of the machine.** The same discipline that separated "gnu-efi
+broke" from "QEMU/OVMF broke" here is the discipline this whole
+project will need again once the actual question becomes `() ->
+mathematics`.
 
 ## Why clang + lld-link, not gnu-efi's own gcc + ld + objcopy pipeline
 
