@@ -109,6 +109,54 @@ typedef struct { UINT16 limit; UINT64 base; } __attribute__((packed)) DtReg;
 static inline void read_gdtr(DtReg *r) { __asm__ __volatile__("sgdt %0" : "=m"(*r)); }
 static inline void read_idtr(DtReg *r) { __asm__ __volatile__("sidt %0" : "=m"(*r)); }
 
+/* Boot Guard enforcement status -- MSR_BOOTGUARD (0x13A), aka
+ * BOOTGUARD_SACM_INFO. Bit layout taken directly from coreboot's own
+ * util/intelmetool/intelmetool.c source (fetched and read verbatim,
+ * not from a paraphrased secondary source -- an earlier search-engine
+ * summary of a different page gave a materially different, incorrect
+ * bit layout for this exact MSR before this was checked against
+ * coreboot's actual code). This exists to answer one question before
+ * any firmware modification is attempted: is Verified Boot (bit 6)
+ * actually enforced on THIS physical chip's fuses, not just present
+ * as Key/Boot-Policy Manifests in the firmware image (those are
+ * necessary but not sufficient evidence of enforcement -- see
+ * hardware/bios-f22e/FIT-AND-STRUCTURE-ANALYSIS.md). */
+#define MSR_BOOTGUARD 0x13A
+static void read_and_print_bootguard(void) {
+  UINT64 v = read_msr(MSR_BOOTGUARD);
+  pstr(L"Boot Guard MSR (0x13A, BOOTGUARD_SACM_INFO) = "); phex64(v); pnl();
+  int btg_capability = (v >> 32) & 1;
+  if (!btg_capability) {
+    pstr(L"  btg_capability=0 -- Boot Guard NOT present as a capability on this chip.\r\n");
+    return;
+  }
+  int nem_enabled    = (v >> 0) & 1;
+  int tpm_type       = (v >> 1) & 3;
+  int tpm_success    = (v >> 3) & 1;
+  int facb_fpf       = (v >> 4) & 1;
+  int measured_boot  = (v >> 5) & 1;
+  int verified_boot  = (v >> 6) & 1;
+  int module_revoked = (v >> 7) & 1;
+  pstr(L"  btg_capability=1  measured_boot="); pdec(measured_boot);
+  pstr(L"  verified_boot="); pdec(verified_boot);
+  pstr(L"  nem_enabled="); pdec(nem_enabled);
+  pstr(L"  tpm_type="); pdec(tpm_type);
+  pstr(L"  tpm_success="); pdec(tpm_success);
+  pstr(L"  facb_fpf="); pdec(facb_fpf);
+  pstr(L"  module_revoked="); pdec(module_revoked);
+  pnl();
+  if (verified_boot) {
+    pstr(L"  VERDICT: Verified Boot IS enforced on this chip's fuses.\r\n");
+    pstr(L"  DO NOT flash a modified/unsigned firmware image -- it will likely\r\n");
+    pstr(L"  be rejected by the CPU's own ACM before BIOS code even runs.\r\n");
+  } else if (measured_boot) {
+    pstr(L"  VERDICT: Measured Boot only (no Verified Boot enforcement).\r\n");
+    pstr(L"  A modification would be measured/logged, not blocked at the ACM level.\r\n");
+  } else {
+    pstr(L"  VERDICT: Neither Verified nor Measured Boot enforced on this chip.\r\n");
+  }
+}
+
 #define MSR_IA32_BIOS_SIGN_ID 0x8B
 static UINT32 read_live_microcode_revision(void) {
   UINT32 a, b, c, d;
@@ -242,6 +290,8 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
   UINT32 live_ucode = read_live_microcode_revision();
   pstr(L"Live microcode revision (RDMSR 0x8B, read directly, pre-OS) = "); phex32(live_ucode); pnl();
+
+  read_and_print_bootguard();
 
   UINT64 tsc1 = read_tsc();
   gBS->Stall(100000);
