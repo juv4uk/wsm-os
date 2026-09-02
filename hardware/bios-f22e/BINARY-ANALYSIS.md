@@ -1,140 +1,159 @@
-# F22e — what the actual binary says / що насправді каже сам бінарник
+# F22e — що насправді каже сам бінарник
 
-Direct static examination of `H170G3.22e` (the 8 MiB ROM image inside
-`mb_bios_ga-h170-gaming3_f22e.zip`), 2026-09-02. Everything below is
-`source-confirmed`: read directly from the file's own bytes, not
-inferred from a description of it. Method: `file`, raw hex inspection,
-`binwalk` (via `guix shell binwalk`), Python for LZMA extraction and a
-targeted Intel-microcode-header scan.
-Пряме статичне дослідження самого файлу `H170G3.22e`, 2026-09-02. Усе
-нижче — `source-confirmed`: прочитано напряму з байтів файлу, а не з
-опису про нього.
+Пряме статичне дослідження самого файлу `H170G3.22e` (8-МіБ ROM-образ
+усередині `mb_bios_ga-h170-gaming3_f22e.zip`), 2026-09-02. Усе нижче —
+`source-confirmed`: прочитано напряму з байтів файлу, а не з опису про
+нього. Метод: `file`, сира hex-інспекція, `binwalk` (через `guix shell
+binwalk`), Python для LZMA-розпакування й цільового сканування
+заголовків Intel-мікрокоду.
 
-**Role of this document, clarified 2026-09-02:** firmware research only
-matters to WSM insofar as it helps determine WSM's own initial
-conditions, not as archaeology for its own sake. Three levels of such
-research exist, and only the third is what WSM actually needs:
+**Роль цього документа, уточнено 2026-09-02:** дослідження прошивки
+має значення для WSM лише настільки, наскільки допомагає визначити
+власні початкові умови WSM, а не як археологія заради археології. Існує
+три рівні такого дослідження, і лише третій — те, що WSM реально
+потрібно:
 
 ```text
-1. STATIC IMAGE      -- what physically sits in flash/ROM (this document)
-2. BOOT BEHAVIOUR     -- what firmware actually does to the CPU
-3. HANDOFF STATE      -- the exact machine state when control passes onward
+1. STATIC IMAGE      -- що фізично лежить у flash/ROM (цей документ)
+2. BOOT BEHAVIOUR     -- що прошивка реально робить із CPU
+3. HANDOFF STATE      -- точний стан машини в момент передачі керування далі
 ```
 
-This document is level 1 only — genuine hardware provenance, stays
-here as-is, but does not by itself answer what WSM needs. `probe/` in
-this same repo does level 3 directly (`handoff-probe.c`,
-`exit-boundary-probe.c`). A concrete demonstration of why level 1 and
-level 3 can genuinely disagree — this exact BIOS's own microcode
-question — is in `FIT-AND-STRUCTURE-ANALYSIS.md`. The sibling `wsm`
-repo's `research/handoff-state.md` keeps only the conclusions this
-work implies for WSM's own design, not this framework or the evidence
-behind it — this document is the source of record for both.
+Цей документ — лише рівень 1: справжній provenance заліза, лишається
+тут як є, але сам по собі не відповідає на те, що потрібно WSM.
+`probe/` у цьому самому репозиторії напряму робить рівень 3
+(`handoff-probe.c`, `exit-boundary-probe.c`). Конкретна демонстрація
+того, чому рівень 1 і рівень 3 можуть насправді розходитись — власне
+питання про мікрокод саме цього BIOS — у `FIT-AND-STRUCTURE-ANALYSIS.md`.
+Сусідній репозиторій `wsm`, файл `research/handoff-state.md`, зберігає
+лише висновки, які ця робота передбачає для власного дизайну WSM, не
+цей фреймворк і не докази позаду нього — цей документ є джерелом
+запису для обох.
 
-## File classification
+## Класифікація файлу
 
-`file H170G3.22e` → **"Intel serial flash for PCH ROM"**. Confirmed
-structurally: bytes `5A A5 F0 0F` (the real Intel Flash Descriptor
-signature) appear at offset `0x10`, exactly where the Flash Descriptor
-Signature is required to live in a valid Intel Flash Descriptor region.
-This is a genuine full-chip SPI flash image (Flash Descriptor + ME
-region + BIOS region), not a bare "BIOS-only" capsule — consistent with
-an 8 MiB SPI flash part actually present on this board.
+`file H170G3.22e` → **"Intel serial flash for PCH ROM"**. Підтверджено
+структурно: байти `5A A5 F0 0F` (реальна сигнатура Intel Flash
+Descriptor) з'являються за офсетом `0x10`, точно там, де сигнатура
+Flash Descriptor мусить жити в чинному регіоні Intel Flash Descriptor.
+Це справжній повночиповий образ SPI flash (Flash Descriptor + регіон
+ME + регіон BIOS), не гола "лише-BIOS" капсула — узгоджується з
+8-МіБ деталлю SPI flash, реально присутньою на цій платі.
 
-## Internal structure
+## Внутрішня структура
 
-`binwalk` found five LZMA-compressed streams (classic `LZMA_ALONE`
-container, properties byte `0x5D`, 16 MiB dictionary) inside the BIOS
-region — typical of an AMI Aptio V UEFI firmware volume's compressed
-PEI/DXE sections:
+`binwalk` знайшов п'ять LZMA-стиснутих потоків (класичний контейнер
+`LZMA_ALONE`, байт властивостей `0x5D`, 16-МіБ словник) усередині
+регіону BIOS — типово для стиснутих секцій PEI/DXE UEFI firmware
+volume AMI Aptio V:
 
-| Offset | Compressed | Uncompressed |
+| Офсет | Стиснуто | Розпаковано |
 |---|---:|---:|
-| `0x297FC8` | 3,261,452 B | **9,130,000 B** (main DXE/driver volume) |
-| `0x6E587C` | 22,646 B | 64,618 B |
-| `0x6EB188` | 11,988 B | 27,366 B |
-| `0x6F9828` | 1,876 B | 2,762 B |
-| `0x6F9FFC` | 8,464 B | 14,638 B |
+| `0x297FC8` | 3 261 452 Б | **9 130 000 Б** (головний том DXE/драйверів) |
+| `0x6E587C` | 22 646 Б | 64 618 Б |
+| `0x6EB188` | 11 988 Б | 27 366 Б |
+| `0x6F9828` | 1 876 Б | 2 762 Б |
+| `0x6F9FFC` | 8 464 Б | 14 638 Б |
 
-All five decompressed cleanly with Python's `lzma` module
-(`FORMAT_ALONE`) to exactly their binwalk-reported uncompressed sizes —
-confirms these are genuine, well-formed LZMA streams, not false-positive
-signature matches.
+Усі п'ять розпакувались чисто модулем `lzma` Python (`FORMAT_ALONE`) до
+рівно тих розмірів, які повідомив binwalk — підтверджує, що це
+справжні, коректно сформовані LZMA-потоки, не хибно-позитивні збіги
+сигнатур.
 
-## Direct string evidence — triple-confirms the release date
+## Прямий текстовий доказ — потрійно підтверджує дату релізу
 
-The main decompressed volume contains this literal string:
+Головний розпакований том містить цей буквальний рядок:
 
 ```
 BIOS Date: 03/09/2018 20:42:30 Ver: 1ASOH2225
 ```
 
-This is now the **third independent confirmation** of the same release
-date, each from a different source: the owner's live `Win32_BIOS`
-query (`2018-03-09`), the zip archive's own internal file timestamp for
-`H170G3.22e` (`2018-03-09 20:47`), and now this embedded build-time
-string baked directly into the firmware image itself
-(`03/09/2018 20:42:30`) — five minutes before the zip's own file
-timestamp, consistent with "build, then package" ordering. `Ver:
-1ASOH2225` is AMI's own internal Aptio core build-version string, not
-previously seen in any external source checked in
-`docs/BIOS-F22E-RESEARCH.md`.
+Це тепер **третє незалежне підтвердження** тієї самої дати релізу,
+кожне з іншого джерела: живий запит `Win32_BIOS` власника
+(`2018-03-09`), власна внутрішня позначка часу файлу `H170G3.22e`
+всередині zip (`2018-03-09 20:47`), і тепер цей вбудований рядок часу
+збірки, запечений прямо в образ прошивки (`03/09/2018 20:42:30`) — за
+п'ять хвилин до власної позначки часу файлу zip, узгоджено з порядком
+"зібрати, потім запакувати". `Ver: 1ASOH2225` — власний внутрішній
+рядок версії ядра AMI Aptio, раніше не бачений у жодному зовнішньому
+джерелі, перевіреному в `docs/BIOS-F22E-RESEARCH.md`.
 
-Other direct string hits, also `source-confirmed`:
+Інші прямі текстові збіги, теж `source-confirmed`:
 
-- `H170-Gaming 3`, `8A19AG04F22e` — the board name and Gigabyte's own
-  internal project-code+version string, both embedded literally.
-- `$VBT SKYLAKE` — an embedded Video BIOS Table specifically built for
-  Skylake graphics, matching the Intel HD Graphics 530 already
-  confirmed in `OWNER-HARDWARE-PROFILE.md`.
-- `Skylake DT`, `Skylake Halo`, `Skylake ULT`, `Skylake ULX`, plus HSIO
-  version strings for both `SKL PCH H/LP` **and** `KBL PCH H` — this
-  build's reference code covers the full Skylake SKU family *and* Kaby
-  Lake PCH tables. This directly confirms, from the binary itself
-  rather than a vendor product page, the "supports 6th and 7th Gen
-  Intel Core" claim from `docs/BIOS-F22E-RESEARCH.md`'s external
-  research.
-- Debug/PDB path strings reveal the network stack driver's real
-  origin: `...\RivetLomPkg\...\AthrLomPkg-Bigfoot\LxUndiDxe\...` — an
-  Atheros "Bigfoot Networks" UNDI (PXE) driver package. This matches
-  the Killer E2200 Gigabit Ethernet Controller already confirmed in
-  `OWNER-HARDWARE-PROFILE.md` (Killer/Qualcomm Atheros acquired Bigfoot
-  Networks; "Killer" NICs are Bigfoot-lineage silicon).
-- `Copyright (C) 2000-2015 Intel Corp.` and UDK2015-era build paths —
-  this firmware is built on Intel's UDK2015 UEFI reference codebase.
+- `H170-Gaming 3`, `8A19AG04F22e` — назва плати й власний внутрішній
+  рядок коду проєкту+версії Gigabyte, обидва вбудовані буквально.
+- `$VBT SKYLAKE` — вбудована Video BIOS Table, спеціально зібрана для
+  графіки Skylake, збігається з Intel HD Graphics 530, уже
+  підтвердженою в `OWNER-HARDWARE-PROFILE.md`.
+- `Skylake DT`, `Skylake Halo`, `Skylake ULT`, `Skylake ULX`, плюс
+  рядки версій HSIO для `SKL PCH H/LP` **і** `KBL PCH H` — референсний
+  код цієї збірки охоплює все сімейство SKU Skylake *й* таблиці PCH
+  Kaby Lake. Це прямо підтверджує з самого бінарника, а не зі сторінки
+  продукту вендора, твердження "підтримує 6-те й 7-ме покоління Intel
+  Core" із зовнішнього дослідження `docs/BIOS-F22E-RESEARCH.md`.
+- Рядки шляхів debug/PDB розкривають справжнє походження драйвера
+  мережевого стека: `...\RivetLomPkg\...\AthrLomPkg-Bigfoot\LxUndiDxe\...`
+  — пакет драйвера Atheros "Bigfoot Networks" UNDI (PXE). Це збігається
+  з Killer E2200 Gigabit Ethernet Controller, уже підтвердженим у
+  `OWNER-HARDWARE-PROFILE.md` (Killer/Qualcomm Atheros придбали Bigfoot
+  Networks; NIC "Killer" — кремній лінії Bigfoot).
+- `Copyright (C) 2000-2015 Intel Corp.` і шляхи збірки ери UDK2015 — ця
+  прошивка зібрана на референсній кодовій базі UEFI UDK2015 від Intel.
 
-## Microcode: searched directly, not located — reported as inconclusive, not absent
+## Мікрокод: шукано напряму, не знайдено цим проходом — повідомлено як непереконливе, не як відсутнє
 
-The owner's exact CPU signature (family 6, model 94 `0x5E`, stepping 3
-— `lscpu`-confirmed) packs to the standard Intel CPUID value
-`0x000506E3`. Two searches were run for a real embedded microcode
-update matching it:
+**Оновлення (пізніший прохід):** цей блоб пізніше таки знайдено —
+структурно, через FIT, а не сирим скануванням — реальна ревізія `0xC2`
+від 2017-11-16 для точної сигнатури CPU власника. Повний опис у
+`FIT-AND-STRUCTURE-ANALYSIS.md`. Розділ нижче лишено як є, для чесного
+запису того, чому саме сирий скан тоді не спрацював.
 
-1. A full Intel microcode-header scan (the real 48-byte header format:
-   `hdrver`, `rev`, `date`, `sig`, `cksum`, `ldrver`, `pf`, `datasize`,
-   `totalsize`, reserved) across the raw 8 MiB file and across the
-   fully decompressed main firmware volume (9,130,000 bytes) — **zero**
-   plausible headers found anywhere, for any CPU signature, not just
-   this one.
-2. A bare byte-pattern search for `E3 06 50 00` (the signature alone,
-   little-endian) — **zero** occurrences in either the raw file or the
-   decompressed volume.
+Точна сигнатура CPU власника (family 6, model 94 `0x5E`, stepping 3 —
+підтверджено `lscpu`) пакується у стандартне значення Intel CPUID
+`0x000506E3`. Проведено два пошуки реального вбудованого оновлення
+мікрокоду, що йому відповідає:
 
-The setup-menu string `uCode Version` **is** present in the firmware
-(confirming the BIOS does display/handle a loaded microcode revision at
-runtime), but the actual update blob itself was not located by either
-method above. The most likely explanation is that it lives inside a
-firmware-volume section not reached by this pass — the four smaller
-LZMA streams were decompressed and scanned too, all negative, but AMI
-Aptio images commonly nest further GUID-addressed sections (a proper
-UEFI Firmware-Volume/FFS walk would be needed to be exhaustive, and was
-not attempted here — that is real additional work, not done in this
-pass). **This is `not-yet-verified`, not `confirmed absent`.**
+1. Повне сканування заголовків мікрокоду Intel (реальний 48-байтний
+   формат заголовка: `hdrver`, `rev`, `date`, `sig`, `cksum`, `ldrver`,
+   `pf`, `datasize`, `totalsize`, зарезервовано) по всьому сирому
+   8-МіБ файлу й по всьому повністю розпакованому головному тому
+   прошивки (9 130 000 байтів) — **нуль** правдоподібних заголовків
+   знайдено будь-де, для будь-якої сигнатури CPU, не лише цієї.
+2. Голий пошук байтового патерну `E3 06 50 00` (сама сигнатура,
+   little-endian) — **нуль** входжень і в сирому файлі, і в
+   розпакованому томі.
 
-## What this does not change
+Рядок меню налаштувань `uCode Version` **присутній** у прошивці
+(підтверджуючи, що BIOS реально показує/обробляє завантажену ревізію
+мікрокоду під час виконання), але сам блоб оновлення не був знайдений
+жодним із методів вище. Найімовірніше пояснення — він живе всередині
+секції firmware volume, до якої цей прохід не дістався — чотири менші
+LZMA-потоки теж розпаковано й проскановано, усі негативні, але образи
+AMI Aptio зазвичай вкладають подальші GUID-адресовані секції (для
+вичерпності знадобився б повноцінний обхід UEFI Firmware-Volume/FFS,
+який тут не робився — це реальна додаткова робота, не виконана в
+цьому проході). **Це `not-yet-verified`, не `confirmed absent`.**
 
-None of this alters any existing architecture decision. It is
-provenance/corroboration work: confirms the archived file is genuine,
-matches the owner's live system on every checked point, and gives three
-independent, mutually-consistent dates for the same release instead of
-relying on one live query alone.
+## Що це не змінює
+
+Ніщо з цього не змінює жодного наявного архітектурного рішення. Це
+робота provenance/підтвердження: підтверджує, що заархівований файл
+справжній, збігається з живою системою власника в кожній перевіреній
+точці, і дає три незалежні, взаємоузгоджені дати для того самого
+релізу замість покладання лише на один живий запит.
+
+---
+
+## F22e — what the actual binary says (English, secondary)
+
+Direct static examination of the F22e ROM image, source-confirmed
+throughout. Real Intel Flash Descriptor signature found structurally;
+five genuine LZMA-compressed firmware-volume streams decompressed
+cleanly; an embedded build-date string triple-confirms the release
+date; board name, Gigabyte project code, Skylake VBT, Kaby Lake PCH
+tables, and the real Killer/Atheros Bigfoot network driver origin all
+found directly in the binary. A raw microcode search for the owner's
+exact CPU signature came up empty here (later resolved structurally via
+FIT, see `FIT-AND-STRUCTURE-ANALYSIS.md`) — reported honestly as
+not-yet-verified at the time, not confirmed absent. See the Ukrainian
+version above for full detail.
