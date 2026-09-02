@@ -36,7 +36,21 @@ page is asserted below.
   pass. `source-confirmed` that both variants exist; `unknown` which one
   the owner has.
 
-## Release date — a real discrepancy, not resolved
+## Release date — RESOLVED 2026-09-02 by the actual firmware file
+
+**Update:** the owner downloaded the actual F22e BIOS archive directly
+from Gigabyte and it is now archived at
+`hardware/bios-f22e/mb_bios_ga-h170-gaming3_f22e.zip` (SHA-256 in that
+directory's README). The ROM file's own internal timestamp —
+`H170G3.22e`, dated `2018-03-09 20:47` inside the zip — matches the
+owner's live-queried `ReleaseDate` exactly. This is now
+`source-confirmed` from the firmware file itself, not inferred. The
+discrepancy below is resolved: `driverscollection.com`'s "01 Apr 2021"
+is confirmed to be that mirror site's own indexing date, not the
+firmware's actual release date.
+
+<details>
+<summary>Original discrepancy record (kept for the record, not deleted)</summary>
 
 - The owner's own machine reports `ReleaseDate: 2018-03-09` for this
   exact BIOS (`Win32_BIOS`, queried live twice). `empirically confirmed`,
@@ -54,6 +68,8 @@ page is asserted below.
   `predicted`, not confirmed; no primary Gigabyte page was successfully
   read to settle it. **Do not treat driverscollection.com's date as
   authoritative; the owner's own live system date is.**
+
+</details>
 
 ## Changelog
 
