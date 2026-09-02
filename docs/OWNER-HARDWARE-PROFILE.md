@@ -382,3 +382,101 @@ Linux/WSL-доказ зібрано `uname`, `/etc/os-release`, `lscpu`, `free`,
 Windows-доказ отримано з read-only запитів `Get-CimInstance`,
 `Get-PhysicalDisk`, `Get-ComputerInfo` і `nvidia-smi`, що обирають лише поля,
 опубліковані вище.
+
+---
+
+## Live re-verification — 2026-09-02 / Жива перевірка — 2026-09-02
+
+Re-checked directly, live, in wsm-os (not trusted from the 2026-08-29
+snapshot above per the ecosystem's own Claim Lifetime Rule — a claim
+does not stay true forever just because it was once verified). Windows
+facts were re-queried through real WSL→Windows interop
+(`powershell.exe`, confirmed reachable and working live), not re-copied
+from the old document.
+Перевірено наживо в wsm-os (не довіряючи знімку від 2026-08-29 за
+власним правилом екосистеми про час життя claim — твердження не
+лишається істинним назавжди тільки тому, що колись підтвердилось).
+Windows-факти перезапитано через реальний WSL→Windows interop
+(`powershell.exe`, підтверджено доступним і робочим наживо), а не
+скопійовано зі старого документа.
+
+### Confirmed unchanged (WINDOWS-OBSERVED, live re-query) / Підтверджено без змін
+
+BIOS `F22e` (AMI, 2018-03-09); baseboard Gigabyte H170-Gaming 3; CPU
+Intel Core i5-6400 @ 2.70GHz, 4 cores/4 logical/no SMT; RAM 2×8 GiB
+DDR4-2133 (`CT8G4DFS8213.C8FBD1`, `TEAMGROUP-UD4-2133`); GPUs Intel HD
+Graphics 530 (driver `26.20.100.7262`) and NVIDIA GTX 1050 Ti (CIM
+`DriverVersion` `32.0.15.8266`, which decodes to the same `582.66`
+already documented — cross-confirmed independently by native
+`nvidia-smi` below, not just re-read from CIM); storage: Kingston
+`SNV2S1000G` 1TB NVMe, Samsung `HD321KJ` 320GB, Samsung 850 EVO 120GB,
+all `Status: OK`; network: Killer E2200 Gigabit + Tailscale Tunnel; OS
+build `10.0.26200`.
+
+### Still genuinely UNKNOWN, reconfirmed / Досі щиро UNKNOWN, перепідтверджено
+
+`Confirm-SecureBootUEFI` still fails live with the same error as
+2026-08-29: `Unable to set proper privileges. Access was denied.` This
+is not new information — it is the same access boundary, reconfirmed
+today rather than assumed unchanged.
+
+### Real deltas since 2026-08-29 / Реальні зміни з 2026-08-29
+
+These are the first two capability gaps the original profile explicitly
+flagged as needing resolution before M1 — both are now closed, live-
+confirmed, not merely re-asserted:
+
+1. **GPU is now visible from Linux/WSL, not only from Windows.**
+   `nvidia-smi` (`/usr/lib/wsl/lib/nvidia-smi`) now runs successfully:
+   driver `582.66`, CUDA runtime `13.0`, GTX 1050 Ti reporting live
+   telemetry (37°C, P8 idle, 588 MiB used at capture time — a snapshot,
+   not a hardware fact). `nvcc` (`/usr/local/cuda-12.6/bin/nvcc`) is
+   also now on PATH. The original doc said NVML could not be
+   initialized and `nvcc` was absent; both are now available.
+2. **The full bare-metal toolchain is now installed and on PATH via
+   Guix**: `clang`, `lld`, `nasm`, `xorriso`, `objcopy` all resolve
+   (previously "not found in the current agent PATH"). The
+   `x86_64-unknown-none` Rust target is installed (previously "not
+   installed"; `rustup target list --installed` now also shows
+   `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-gnu`,
+   `wasm32-unknown-unknown`). `qemu-system-x86_64` 10.2.1 is available
+   via Guix (this repo's own `manifest.scm`); it was previously "not
+   found in the current agent PATH" too.
+
+### New evidence not in the original capture / Новий доказ, якого не було
+
+- `lspci` (installed via `guix shell pciutils`) confirms WSL2 exposes
+  only virtualized PCI devices to Linux: a virtio SCSI console, a
+  virtio filesystem device, and a Microsoft "Basic Render Driver" 3D
+  controller — no real Intel/NVIDIA PCI IDs are visible from this side
+  at all. This directly supports the existing architecture decision
+  that native display/PCI driver work cannot be developed or tested
+  from this WSL agent process against the real GPU/NIC silicon; QEMU
+  (or a genuinely separate physical-hardware pass) remains the only
+  path.
+- **KVM acceleration for QEMU is a real, currently-standing limit, not
+  a Windows-hardware fact.** `/dev/kvm` exists but the WSL agent user is
+  not in the `kvm` group; the real, reproduced error is
+  `qemu-system-x86_64: -accel kvm: Could not access KVM kernel module:
+  Permission denied`. This host does have full `sudo (ALL : ALL) ALL`
+  configured, but sudo here requires an interactive password this agent
+  does not have and will not attempt to obtain or bypass — see
+  `docs/QEMU-SETUP.md` for the full account. This is unrelated to the
+  physical machine's own hardware; it is a WSL/Linux-user-permission
+  fact, recorded here because it directly bears on what "run under
+  QEMU" can currently mean in this environment.
+
+### What this does not change / Що це не змінює
+
+None of this alters the profile's own architecture decisions (QEMU
+first, serial-first I/O, bounded memory, scalar baseline deferring
+AVX2/BMI2, GPU work belonging to hosted `wsm-cuda` not bare-metal M1).
+The toolchain and GPU-visibility deltas above mean the *tooling* to
+eventually pursue that later work exists now where it didn't on
+2026-08-29 — they do not themselves authorize starting that work.
+Жодне з цього не змінює власні архітектурні рішення профілю (QEMU
+першим, serial-first I/O, обмежена пам'ять, скалярний базис з
+відкладеними AVX2/BMI2, GPU-робота належить hosted `wsm-cuda`, а не
+bare-metal M1). Дельти інструментарію та видимості GPU вище означають,
+що *інструменти* для майбутньої роботи тепер існують там, де їх не було
+2026-08-29 — самі по собі вони не авторизують початок цієї роботи.
