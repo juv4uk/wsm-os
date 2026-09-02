@@ -1,40 +1,59 @@
-# F22e BIOS firmware — as downloaded / як завантажено
+# Прошивка BIOS F22e — як завантажено
 
-`mb_bios_ga-h170-gaming3_f22e.zip` — downloaded directly by the owner
-from Gigabyte's own site on 2026-09-02 (Windows Downloads folder,
-`user\Downloads\mb_bios_ga-h170-gaming3_f22e.zip`), copied here byte-
-identical. Not re-derived, not re-hosted from a third-party mirror.
-Завантажено власником напряму з сайту Gigabyte 2026-09-02, скопійовано
-сюди побайтово ідентично. Не з дзеркала третьої сторони.
+`mb_bios_ga-h170-gaming3_f22e.zip` — завантажено власником напряму з
+сайту Gigabyte 2026-09-02 (папка Downloads у Windows,
+`user\Downloads\mb_bios_ga-h170-gaming3_f22e.zip`), скопійовано сюди
+побайтово ідентично. Не перевиведено, не передзавантажено з дзеркала
+третьої сторони.
 
 **SHA-256:** `565154ef1f625557f86a3b3f89a2d106b194b27b73d3441bd87fd508ae3c5b24`
-(verified equal between the Windows-side download and this copy).
+(перевірено — збігається між завантаженням на Windows-стороні і цією
+копією).
 
-## Archive contents
+## Вміст архіву
 
 ```
-autoexec.bat        19 bytes   2018-03-15 17:40
-Efiflash.exe     81,976 bytes   2017-01-24 17:54
-H170G3.22e     8,388,608 bytes  2018-03-09 20:47
+autoexec.bat        19 байтів   2018-03-15 17:40
+Efiflash.exe     81 976 байтів  2017-01-24 17:54
+H170G3.22e    8 388 608 байтів  2018-03-09 20:47
 ```
 
-`H170G3.22e` (exactly 8 MiB) is the actual BIOS ROM image; `Efiflash.exe`
-is Gigabyte's own DOS/EFI flashing utility; `autoexec.bat` is a short
-script that presumably invokes it. None of these have been run, flashed,
-or otherwise executed — this is a research/provenance copy only. Nothing
-here is written to any physical device by any script in this repo.
+`H170G3.22e` (рівно 8 МіБ) — реальний ROM-образ BIOS; `Efiflash.exe` —
+власна DOS/EFI-утиліта прошивки від Gigabyte; `autoexec.bat` — короткий
+скрипт, що, ймовірно, її викликає. Жоден із цих файлів не запускався,
+не прошивався і жодним іншим способом не виконувався — це лише
+дослідницька/provenance-копія. Жоден скрипт цього репозиторію нічого
+не записує на реальний фізичний пристрій.
 
-## Resolves the open date question from BIOS-F22E-RESEARCH.md
+## Закриває відкрите питання про дату з BIOS-F22E-RESEARCH.md
 
-`docs/BIOS-F22E-RESEARCH.md` flagged a real, unresolved conflict:
-the owner's live system reports `ReleaseDate: 2018-03-09` for this BIOS,
-while `driverscollection.com`'s listing claimed `01 Apr 2021`, and that
-document could not settle which was right from external sources alone.
+`docs/BIOS-F22E-RESEARCH.md` позначив реальний, тоді ще не вирішений
+конфлікт: жива система власника показує `ReleaseDate: 2018-03-09` для
+цього BIOS, тоді як лістинг `driverscollection.com` стверджував
+`01 Apr 2021`, і той документ не міг вирішити, хто правий, спираючись
+лише на зовнішні джерела.
 
-**This archive settles it.** The ROM file's own internal timestamp
-inside the zip — `H170G3.22e`, dated `2018-03-09 20:47` — matches the
-owner's live-queried `ReleaseDate` exactly, independent of any
-third-party mirror's claim. `driverscollection.com`'s "01 Apr 2021" is
-now confirmed to be that site's own indexing/mirroring date, not the
-firmware's actual release date. `source-confirmed` (the file itself,
-not a description of it).
+**Цей архів вирішує питання.** Власна внутрішня позначка часу
+ROM-файлу всередині zip — `H170G3.22e`, дата `2018-03-09 20:47` —
+точно збігається з `ReleaseDate`, отриманим із живого запиту власника,
+незалежно від будь-якого твердження стороннього дзеркала.
+`driverscollection.com` з його "01 Apr 2021" тепер підтверджено як
+дата власного індексування/дзеркалення того сайту, не реальна дата
+релізу прошивки. `source-confirmed` (сам файл, а не опис про нього).
+
+---
+
+## F22e BIOS firmware — as downloaded (English)
+
+`mb_bios_ga-h170-gaming3_f22e.zip`, downloaded directly by the owner
+from Gigabyte on 2026-09-02, copied here byte-identical (SHA-256
+verified). Contains `H170G3.22e` (8 MiB ROM image, internally
+timestamped `2018-03-09 20:47`), `Efiflash.exe` (Gigabyte's flashing
+utility), `autoexec.bat`. Nothing here has been executed or flashed —
+research/provenance copy only.
+
+This archive's internal timestamp resolves the release-date conflict
+`docs/BIOS-F22E-RESEARCH.md` left open: it matches the owner's
+live-queried `ReleaseDate` exactly, confirming `driverscollection.com`'s
+"01 Apr 2021" was that site's own indexing date, not the firmware's
+actual release date.

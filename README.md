@@ -1,25 +1,24 @@
 # WSM-OS
 
-The hardware-execution counterpart to [wsm](https://github.com/juv4uk/wsm).
+Апаратний майданчик виконання для [wsm](https://github.com/juv4uk/wsm).
 
-wsm carries no inherited Lisp/Rust history. wsm-os carries none either:
-it is not a continuation of the old wsm-os-lisp lab, and inherits
-nothing from it beyond the name.
+`wsm` не успадковує історію Lisp/Rust. `wsm-os` теж не успадковує:
+це не продовження старої лабораторії `wsm-os-lisp`, нічого звідти не
+переноситься, окрім самої назви.
 
-Its scope beyond that is not yet decided. What wsm establishes,
-wsm-os is where it gets proven on real hardware — nothing is promised
-here ahead of that.
+Обсяг поза цим ще не визначений. Те, що встановлює `wsm`, тут
+доводиться на реальному залізі — нічого не обіцяється наперед.
 
-## The rule this repo works under
+## Правило, за яким працює цей репозиторій
 
-**wsm-os does not invent capabilities. It only tests capabilities
-already formulated in `wsm`.** Not scheduler, allocator, SMP/interrupt
-framework, driver model, filesystem, heap, runtime, or ABI — none of
-that until `wsm` has created an actual semantic need for it. `x86`
-having an instruction, a register, or a platform mechanism is not by
-itself a reason for this repo to build toward it. The symmetric half of
-this rule lives in `wsm` itself: it does not import a hardware concept
-as semantics just because the machine happens to have one.
+**`wsm-os` не винаходить можливості. Він лише перевіряє можливості,
+які вже сформульовані в `wsm`.** Ніякого scheduler, allocator,
+SMP/interrupt framework, driver model, filesystem, heap, runtime чи
+ABI — доки `wsm` не створить реальну семантичну потребу в цьому. Те,
+що `x86` має якусь інструкцію, регістр чи механізм платформи, саме по
+собі не є причиною будувати щось у цьому напрямку. Симетрична частина
+цього правила живе в самому `wsm`: він не імпортує апаратне поняття
+як семантику лише тому, що машина його має.
 
 ```text
 wsm:      "нам потрібна операція X"
@@ -27,12 +26,30 @@ wsm:      "нам потрібна операція X"
 wsm-os:   "ось чи можна її реалізувати і якою ціною"
 
 НЕ:
-x86 has ADD
+x86 має ADD
     ↓
-    => WSM has +
+    => WSM має +
 ```
 
-Everything currently in this repo (BIOS/firmware structural analysis,
-QEMU/OVMF tooling, the handoff-state probes) exists to answer "can a
-given capability be reached and observed on real hardware" — not to
-grow into an operating system ahead of `wsm` asking for one.
+Усе, що зараз є в цьому репозиторії (структурний аналіз BIOS/firmware,
+інструментарій QEMU/OVMF, проби handoff-state), існує, щоб відповісти
+на питання "чи можна досягти й спостерегти цю можливість на реальному
+залізі" — а не для того, щоб вирости в операційну систему раніше, ніж
+`wsm` про це попросить.
+
+---
+
+## WSM-OS (English)
+
+The hardware-execution counterpart to `wsm`. Carries no inherited
+Lisp/Rust history — not a continuation of the old `wsm-os-lisp` lab,
+nothing kept beyond the name.
+
+**Standing rule**: `wsm-os` invents no capabilities; it only tests
+capabilities `wsm` has already formulated (no scheduler, allocator,
+SMP/interrupt framework, driver model, filesystem, heap, runtime, or
+ABI ahead of an actual semantic need). Symmetrically, `wsm` never
+imports a hardware concept as semantics just because `x86` happens to
+have it. Everything in this repo exists to answer "can a given
+capability be reached and observed on real hardware," not to grow into
+an operating system ahead of `wsm` asking for one.
