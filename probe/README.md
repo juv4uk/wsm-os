@@ -1,31 +1,31 @@
-# handoff-probe — a real UEFI application that reads live CPU/platform state
+# handoff-probe — реальний UEFI-застосунок, що читає живий стан CPU/платформи
 
-Per the owner's ten-step BIOS research program, step 9: "Не Rust
-runtime, не великий loader. Маленький stub, який перед
-`ExitBootServices()` записує у serial: memory map, GOP framebuffer,
-ACPI root, SMBIOS, CPU state, loaded microcode revision." This is that
-stub, real and running, not a design sketch.
+За власною десятикроковою дослідницькою програмою власника про BIOS,
+крок 9: "Не Rust runtime, не великий loader. Маленький stub, який
+перед `ExitBootServices()` записує у serial: memory map, GOP
+framebuffer, ACPI root, SMBIOS, CPU state, loaded microcode revision."
+Це саме той stub, реальний і працюючий, не ескіз дизайну.
 
-## Usage
+## Використання
 
 ```bash
-./build.sh [source.c]     # clang + lld-link -> <source>.efi (default: handoff-probe.c; see below for why not gnu-efi's own toolchain)
-./make-esp.sh [source.efi]  # sgdisk + mtools -> esp.img (a real GPT-partitioned FAT32 disk image; default: handoff-probe.efi)
-./run-probe.sh              # boots esp.img under the wsm-os hardware-tuned QEMU/OVMF setup
+./build.sh [source.c]       # clang + lld-link -> <source>.efi (типово: handoff-probe.c; чому не власний тулчейн gnu-efi — нижче)
+./make-esp.sh [source.efi]  # sgdisk + mtools -> esp.img (справжній GPT-розмічений FAT32-образ диска; типово: handoff-probe.efi)
+./run-probe.sh              # завантажує esp.img під налаштованим на залізо QEMU/OVMF wsm-os
 ```
 
-Two probes exist:
+Існує дві проби:
 
-- `handoff-probe.c` -- reads and prints CPU/platform state (see below).
-- `exit-boundary-probe.c` -- crosses `ExitBootServices()` for real and
-  proves liveness on the other side with no UEFI API at all (see
-  "Step 10" below).
+- `handoff-probe.c` — читає й друкує стан CPU/платформи (див. нижче).
+- `exit-boundary-probe.c` — реально перетинає `ExitBootServices()` і
+  доводить життєздатність на іншому боці без жодного UEFI API взагалі
+  (див. "Крок 10" нижче).
 
-All three scripts are idempotent and require no root/loop-mounting —
-`make-esp.sh` partitions and formats a plain file directly via `sgdisk`
-and `mtools`'s byte-offset addressing (`file@@offset`).
+Усі три скрипти ідемпотентні й не потребують root/loop-монтування —
+`make-esp.sh` розмічає й форматує звичайний файл напряму через `sgdisk`
+і байт-офсетну адресацію `mtools` (`file@@offset`).
 
-## Real, captured output (2026-09-02)
+## Реальний, зафіксований вивід (2026-09-02)
 
 ```text
 === wsm-os handoff-probe: real CPU/platform state, pre-ExitBootServices ===
@@ -50,152 +50,171 @@ SMBIOS         = present
 Framebuffer    = 0x0000000080000000  1280x800  pixels-per-scanline=1280  mode=0
 ```
 
-**Scope, stated plainly:** this is `LIVE-CONFIRMED` for the QEMU/OVMF
-*virtual* environment this ran in on this host — **not** the owner's
-physical i5-6400. It is a real measurement of a real (emulated)
-machine's actual boot-time state, not a reconstruction — that distinction
-from `BINARY-ANALYSIS.md`'s static reading still holds. But it is not
-yet a measurement of the physical hardware. Two concrete places where
-QEMU/TCG visibly diverges from what the real silicon would report:
+**Обсяг, сказано прямо:** це `LIVE-CONFIRMED` для *віртуального*
+середовища QEMU/OVMF, у якому це виконувалось на цьому хості — **не**
+для фізичного i5-6400 власника. Це реальний вимір реального
+(емульованого) стану машини під час завантаження, не реконструкція —
+це розрізнення від статичного читання в `BINARY-ANALYSIS.md` досі
+тримається. Але це ще не вимір фізичного заліза. Два конкретних місця,
+де QEMU/TCG видимо розходиться з тим, що повідомив би реальний кремній:
 
-- **Live microcode revision reads back as `0x1`.** TCG does not
-  emulate Intel's real microcode-update mechanism; `IA32_BIOS_SIGN_ID`
-  under TCG is a stub, not a reflection of any real loaded microcode.
-  On the physical machine this exact mechanism would instead read the
-  real revision — plausibly `0xD6`, matching the Windows-registry
-  reading from `wsm/research/handoff-state.md`, or possibly the F22e-
-  embedded `0xC2` if run before Windows' own microcode override lands
-  — but that is `predicted`, not measured, until this probe (or an
-  equivalent) actually runs on real hardware.
-- **CPUID signature reads back as exactly `0x000506E3`.** This is
-  QEMU faithfully reporting back the `-cpu Skylake-Client-v1` model it
-  was told to emulate — a real read of the *emulated* CPU, correctly
-  matching the owner's real signature by construction (that's what the
-  hardware-tuned QEMU setup in `docs/QEMU-SETUP.md` is for), not
-  independent confirmation of anything.
-- **Framebuffer (1280x800, `0x80000000`) and the memory map's specific
-  numbers** reflect QEMU's own virtual chipset/GPU, not the owner's
-  real Intel HD Graphics 530 or the real machine's actual E820/UEFI
-  memory map.
+- **Жива ревізія мікрокоду читається як `0x1`.** TCG не емулює
+  реальний механізм оновлення мікрокоду Intel; `IA32_BIOS_SIGN_ID` під
+  TCG — заглушка, не відображення жодного реально завантаженого
+  мікрокоду. На фізичній машині цей самий механізм натомість прочитав
+  би реальну ревізію — правдоподібно `0xD6`, збігається зі значенням
+  реєстру Windows із `wsm/research/handoff-state.md`, або можливо
+  вбудований F22e `0xC2`, якщо запущено до того, як накладеться власна
+  накладка мікрокоду Windows — але це `predicted`, не виміряно, доки
+  ця проба (чи еквівалент) реально не запуститься на реальному залізі.
+- **Сигнатура CPUID читається як точно `0x000506E3`.** Це QEMU чесно
+  повідомляє назад модель `-cpu Skylake-Client-v1`, яку йому наказали
+  емулювати — реальне читання *емульованого* CPU, коректно збігається
+  з реальною сигнатурою власника за конструкцією (саме для цього й
+  налаштований під залізо QEMU в `docs/QEMU-SETUP.md`), не незалежне
+  підтвердження будь-чого.
+- **Framebuffer (1280x800, `0x80000000`) і конкретні числа карти
+  пам'яті** відображають власний віртуальний чипсет/GPU QEMU, не
+  реальну Intel HD Graphics 530 власника чи реальну карту пам'яті
+  E820/UEFI реальної машини.
 
-Physical-hardware execution of this exact probe is separate,
-owner-authorized future work — same boundary already stated in
-`docs/QEMU-SETUP.md` for boot-image execution generally.
+Виконання цієї точної проби на фізичному залізі — окрема, авторизована
+власником майбутня робота — та сама межа, вже заявлена в
+`docs/QEMU-SETUP.md` для виконання образів завантаження загалом.
 
-**Three realities, not one** — the owner's own framing after this
-probe's first result: a STATIC firmware image (what F22e's flash
-actually contains), a LIVE/VIRTUAL machine (what this probe observes
-under QEMU+OVMF+TCG), and a LIVE/PHYSICAL machine (the real i5-6400 —
-genuinely unknown from here, and deliberately left as `?` rather than
-filled in by assumption). The live microcode revision reading back as
-`0x1` is a useful *negative* witness of exactly this: the probe read
-something real, but what it read has no claim to the same physical
-meaning a read on real silicon would carry. **`readable != physically
-representative`** — a rule this probe's own result, not just its
-design, established.
+**Три реальності, не одна** — власне формулювання власника після
+першого результату цієї проби: STATIC-образ прошивки (що реально
+міститься у флеш-пам'яті F22e), LIVE/VIRTUAL-машина (що спостерігає ця
+проба під QEMU+OVMF+TCG), і LIVE/PHYSICAL-машина (реальний i5-6400 —
+насправді невідомий звідси, і навмисно лишений як `?` замість
+заповнення здогадкою). Жива ревізія мікрокоду, що читається як `0x1`
+— корисний *негативний* свідок саме цього: проба прочитала щось
+реальне, але прочитане не має права на той самий фізичний зміст, який
+мало б читання на реальному кремнії. **`readable != physically
+representative`** — правило, яке встановив саме результат цієї проби,
+не лише її дизайн.
 
-## Step 10: crossing ExitBootServices() for real
+## Крок 10: реальне перетинання ExitBootServices()
 
-`exit-boundary-probe.c` answers the next question the owner posed
-directly: step 9 proved the machine could be *observed* through UEFI;
-step 10 proves control can *survive* the one boundary that actually
-matters — the moment Boot Services (and everything built on them,
-including the console `handoff-probe.c` prints through) stop being
-valid at all.
+`exit-boundary-probe.c` відповідає на наступне питання, яке власник
+поставив напряму: крок 9 довів, що машину можна *спостерігати* через
+UEFI; крок 10 доводить, що керування може *пережити* єдину межу, яка
+насправді важлива — момент, коли Boot Services (і все, побудоване на
+них, включно з консоллю, через яку друкує `handoff-probe.c`)
+перестають бути чинними взагалі.
 
-The criterion, run for real, twice, from a clean rebuild both times
+Критерій, реально прогнаний, двічі, з чистої перезбірки обидва рази
 (2026-09-02):
 
 ```text
-BEFORE_EXIT            <- printed via UEFI ConOut, Boot Services still valid
-ExitBootServices()     <- a real call, real retry-on-stale-map-key loop, succeeded on the first attempt both runs
-AFTER_EXIT              <- printed via raw port I/O to the 16550 UART at 0x3F8, NO UEFI API used
-RAW_CONTROL_REACHED     <- same raw channel, after `cli` and nothing else
+BEFORE_EXIT              <- надруковано через UEFI ConOut, Boot Services ще чинні
+ExitBootServices()       <- реальний виклик, реальний цикл повтору на застарілий map-key, спрацював з першої спроби обидва рази
+AFTER_EXIT                 <- надруковано через сирий port-I/O на UART 16550 за 0x3F8, БЕЗ жодного UEFI API
+RAW_CONTROL_REACHED        <- той самий сирий канал, після `cli` й нічого більше
 ```
 
-No OS, no allocator, no scheduler, no Lisp, no Rust runtime — not even
-canonical `t`. `()` itself is deliberately **not** encoded anywhere in
-this probe: choosing its representation is real design work belonging
-to `wsm`'s own architecture (see the owner's own `()`-preservation
-discipline in `wsm/docs/ROADMAP.md`), not something to rush inside a
-wsm-os lab probe just because a halt loop needed *something* to do.
-Reaching a point of pure, UEFI-independent control and proving it —
-nothing else — is the entire claim `RAW_CONTROL_REACHED` makes.
+Жодної ОС, жодного allocator, жодного scheduler, жодного Lisp, жодного
+Rust runtime — навіть канонічного `t`. Сам `()` навмисно **не**
+закодований ніде в цій пробі: вибір його представлення — реальна
+дизайнерська робота, що належить власній архітектурі `wsm` (див.
+власну дисципліну збереження `()` в `wsm/docs/ROADMAP.md`), не щось,
+що варто поспіхом робити всередині лабораторної проби wsm-os лише
+тому, що циклу halt потрібно було *щось* робити. Досягнення точки
+чистого, незалежного від UEFI керування і доведення цього — нічого
+більше — і є повним твердженням, яке робить `RAW_CONTROL_REACHED`.
 
-**Naming correction, same day (owner's own review):** the final marker
-was originally `WSM_0_REACHED`. That overstated the claim — no `wsm`
-code runs in this probe at all, only this file's own halt loop.
-Renamed to `RAW_CONTROL_REACHED` so it cannot later be misread as
-WSM's own first state; `WSM_0_REACHED` is reserved for when code that
-actually lives in the `wsm` repo runs its own first real state.
+**Виправлення назви, того самого дня (власний огляд власника):**
+фінальний маркер спочатку називався `WSM_0_REACHED`. Це завищувало
+твердження — жоден код `wsm` у цій пробі взагалі не виконується,
+лише власний цикл halt цього файлу. Перейменовано на
+`RAW_CONTROL_REACHED`, щоб його пізніше не могли неправильно прочитати
+як власний перший стан WSM; `WSM_0_REACHED` зарезервовано для моменту,
+коли код, що реально живе в репозиторії `wsm`, виконає власний перший
+реальний стан.
 
-**Architectural boundary, stated in the source file itself**: this
-probe — gnu-efi's headers, clang's COFF target, OVMF, QEMU, the whole
-UEFI bootstrap apparatus — stays in `wsm-os`, the laboratory. `wsm`
-itself should never need to know any of that exists. Where `wsm`'s own
-machine would actually begin is exactly the point right after
-`ExitBootServices()` succeeds in this file — not a separate directory
-to split into today (a single running boot flow cannot be split across
-two git repos at runtime), but the conceptual line future work should
-respect when something real gets built past this proof.
+**Архітектурна межа, зазначена в самому вихідному файлі**: ця проба —
+заголовки gnu-efi, ціль COFF clang, OVMF, QEMU, увесь апарат UEFI
+bootstrap — лишається в `wsm-os`, лабораторії. `wsm` сам ніколи не
+повинен знати, що будь-що з цього існує. Де насправді почалася б
+власна машина `wsm` — це точно точка одразу після успішного
+`ExitBootServices()` у цьому файлі — не окрема директорія, яку варто
+розділяти сьогодні (один працюючий boot-потік не можна розділити між
+двома git-репозиторіями під час виконання), а концептуальна лінія, яку
+майбутня робота має поважати, коли щось реальне буде побудоване поза
+цим доказом.
 
-**One more law this whole detour earned, not just the boundary
-experiment**: the earlier gnu-efi/GCC-16 incompatibility (below) looked
-exactly like "the UEFI probe prints garbage" — a symptom that could
-easily have been misread as something wrong with the machine, the
-disk, or the probe's own logic. Real bisection showed it was none of
-those; it was a toolchain-version mismatch. **A tool's failure is not
-a property of the machine.** The same discipline that separated "gnu-efi
-broke" from "QEMU/OVMF broke" here is the discipline this whole
-project will need again once the actual question becomes `() ->
-mathematics`.
+**Ще один закон, який заробив увесь цей відступ, не лише сам
+експеримент з межею**: раніша несумісність gnu-efi/GCC-16 (нижче)
+виглядала точно як "проба UEFI друкує сміття" — симптом, який легко
+можна було б неправильно прочитати як щось не так із машиною, диском,
+чи власною логікою проби. Реальна бісекція показала, що це не жодне з
+цього — це була невідповідність версій тулчейну. **Збій інструмента —
+не властивість машини.** Та сама дисципліна, що розділила "gnu-efi
+зламався" від "QEMU/OVMF зламався" тут — це та сама дисципліна, яка
+знадобиться цьому всьому проєкту знову, коли реальне питання стане
+`() -> математика`.
 
-## Why clang + lld-link, not gnu-efi's own gcc + ld + objcopy pipeline
+## Чому clang + lld-link, не власний пайплайн gcc + ld + objcopy від gnu-efi
 
-The first build attempt used gnu-efi's documented recipe (gcc,
-`elf_x86_64_efi.lds`, `crt0-efi-x86_64.o`, then `objcopy
---target=efi-app-x86_64` to convert the resulting ELF shared object to
-PE32+). It compiled and linked cleanly, `file` reported a valid PE32+
-EFI application, and OVMF's own boot log confirmed it loaded
-(`BdsDxe: starting Boot0001 ...`) — but instead of running, it emitted
-an endless repeating 3-byte garbage pattern (`0xBE 0xAF 0xEA ...`) over
-serial, forever.
+Перша спроба збірки використала задокументований рецепт gnu-efi (gcc,
+`elf_x86_64_efi.lds`, `crt0-efi-x86_64.o`, потім `objcopy
+--target=efi-app-x86_64`, щоб конвертувати отриманий ELF-shared-object
+у PE32+). Він компілювався й лінкувався чисто, `file` повідомляв про
+чинний PE32+ EFI-застосунок, і власний boot-лог OVMF підтверджував
+його завантаження (`BdsDxe: starting Boot0001 ...`) — але замість
+виконання він видавав нескінченний повторюваний 3-байтний патерн
+сміття (`0xBE 0xAF 0xEA ...`) через serial, назавжди.
 
-Real bisection, not guessing:
+Реальна бісекція, не здогадка:
 
-1. **Ruled out disk/boot-path issues** by trying three different
-   backends for the exact same binary: QEMU's `fat:rw:<dir>`
-   on-the-fly driver, an unpartitioned raw FAT image attached as a
-   SATA drive, and a properly `sgdisk`-partitioned GPT image with a
-   real ESP. All three reproduced the identical garbage byte pattern.
-2. **Ruled out a genuine CPU fault** by re-running under
-   `-d int,guest_errors -D qemu_debug.log`: the only vector logged was
-   `0x20` (a periodic timer IRQ, expected from the probe's own idle
-   `Stall()` loop), 688 times over the run — no `#GP`/`#PF`/`#UD`, no
-   exception at all.
-3. **Ruled out anything probe-specific** by writing a minimal
-   hello-world (`InitializeLib` + one `Print()` + an idle loop, no
-   register/MSR reads at all) through the exact same gnu-efi
-   build pipeline — it reproduced the identical garbage.
-4. Rebuilding that same hello-world with clang's native
-   `x86_64-unknown-windows` target and `lld-link` (direct COFF/PE
-   output, no ELF-to-PE conversion step at all) **worked on the first
-   try** — real, visible `HELLO FROM SELF-CONTAINED PROBE` text on
-   serial.
+1. **Виключили проблеми диска/шляху завантаження**, пробувавши три
+   різні бекенди для точно того самого бінарника: on-the-fly-драйвер
+   QEMU `fat:rw:<dir>`, нерозмічений сирий FAT-образ, підключений як
+   SATA-диск, і правильно розмічений через `sgdisk` GPT-образ із
+   реальним ESP. Усі три відтворили ідентичний патерн сміття.
+2. **Виключили справжній збій CPU**, перезапустивши під
+   `-d int,guest_errors -D qemu_debug.log`: єдиний зареєстрований
+   вектор — `0x20` (періодичний таймерний IRQ, очікуваний від власного
+   циклу очікування `Stall()` проби), 688 разів за запуск — жодного
+   `#GP`/`#PF`/`#UD`, жодного винятку взагалі.
+3. **Виключили щось специфічне для проби**, написавши мінімальний
+   hello-world (`InitializeLib` + один `Print()` + цикл очікування,
+   жодних читань регістрів/MSR взагалі) через точно той самий пайплайн
+   збірки gnu-efi — він відтворив ідентичне сміття.
+4. Перезбирання того самого hello-world з рідною ціллю clang
+   `x86_64-unknown-windows` і `lld-link` (прямий вивід COFF/PE, взагалі
+   без кроку конвертації ELF-у-PE) **спрацювало з першої спроби** —
+   реальний, видимий текст `HELLO FROM SELF-CONTAINED PROBE` на serial.
 
-The most likely explanation (not itself independently verified further
-— the working alternative was adopted instead of chasing gnu-efi's own
-failure to its root cause, a reasonable stopping point once a clean
-working path existed): this environment's GCC (16.1.0, a very recent
-version) produces code or relocations that gnu-efi 4.0.4's
-long-unmaintained ELF→PE conversion assumptions don't handle correctly
-— a real toolchain-version-skew bug, not a logic error in the probe.
+Найімовірніше пояснення (саме по собі далі незалежно не перевірено —
+робочу альтернативу прийнято замість переслідування власної кореневої
+причини збою gnu-efi, розумна точка зупинки, щойно існував чистий
+робочий шлях): GCC цього середовища (16.1.0, дуже нова версія) генерує
+код чи релокації, які довго-непідтримувані припущення конвертації
+ELF→PE gnu-efi 4.0.4 обробляють некоректно — реальний баг розбіжності
+версій тулчейну, не логічна помилка в пробі.
 
-**Consequence for the probe's own code:** `handoff-probe.c` does not
-link against gnu-efi's runtime library (`libefi.a`/`libgnuefi.a`) at
-all — no `InitializeLib`, no `Print()`. It only uses gnu-efi's headers
-(portable C struct definitions) and talks to `SystemTable`'s protocols
-directly, with small hand-written hex/decimal print helpers. This is
-what actually made the clang/lld-link path self-contained and
-buildable without needing gnu-efi's own object files to link cleanly
-into a COFF output at all.
+**Наслідок для власного коду проби:** `handoff-probe.c` взагалі не
+лінкується проти рантайм-бібліотеки gnu-efi (`libefi.a`/`libgnuefi.a`)
+— жодного `InitializeLib`, жодного `Print()`. Він використовує лише
+заголовки gnu-efi (переносні визначення структур C) і напряму говорить
+із протоколами `SystemTable`, з малими власноруч написаними
+допоміжними функціями друку hex/decimal. Саме це реально зробило шлях
+clang/lld-link самодостатнім і придатним до збірки без потреби, щоб
+власні об'єктні файли gnu-efi чисто лінкувались у вивід COFF взагалі.
+
+---
+
+## handoff-probe (English, secondary)
+
+A real UEFI application that reads CR0/CR3/CR4/EFER/CPUID/live-microcode/
+memory-map/ACPI/SMBIOS/framebuffer before `ExitBootServices()`, and a
+second probe (`exit-boundary-probe.c`) that crosses that boundary for
+real, proving liveness over a raw serial channel with zero UEFI API
+afterward (`RAW_CONTROL_REACHED`, renamed from an overstated
+`WSM_0_REACHED`). Includes the real bisection story for a gnu-efi/GCC-16
+toolchain incompatibility that looked like a machine fault but wasn't —
+"a tool's failure is not a property of the machine." See the Ukrainian
+version above for full detail, real captured output, and the honest
+scope limits (QEMU/OVMF virtual environment, not the owner's physical
+machine).
