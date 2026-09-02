@@ -1,0 +1,7 @@
+*.o
+*.so
+*.efi
+*.img
+*_run.log
+*_run1.log
+run_capture.log
