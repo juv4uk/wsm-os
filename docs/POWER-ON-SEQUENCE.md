@@ -1,170 +1,175 @@
-# What actually happens when the power turns on / Що насправді стається при вмиканні живлення
+# Що насправді стається при вмиканні живлення
 
-The full path from pressing the power button to the point this
-repo's own `probe/exit-boundary-probe.c` has already proven reachable
-(`ExitBootServices()`, raw serial control). Every phase below cites
-what grounds it: `STATIC-CONFIRMED` (read directly from this board's
-own F22e flash image, see `hardware/bios-f22e/`), `LIVE-CONFIRMED`
-(directly observed in this repo's own QEMU/OVMF runs — real BDS
-output, not a description of it), or `general` (well-documented public
-Intel/x86 platform architecture, not independently re-verified against
-this exact board's silicon fuse state).
-Повний шлях від натискання кнопки живлення до точки, яку цей репозиторій
-вже реально довів досяжною. Кожна фаза підписана джерелом підтвердження.
+Повний шлях від натискання кнопки живлення до точки, яку цей
+репозиторій вже реально довів досяжною (`probe/exit-boundary-probe.c`,
+`ExitBootServices()`, сирий serial-контроль). Кожна фаза нижче цитує,
+на чому вона ґрунтується: `STATIC-CONFIRMED` (прочитано напряму з
+власного образу флеш F22e цієї плати, див. `hardware/bios-f22e/`),
+`LIVE-CONFIRMED` (безпосередньо спостережено у власних запусках
+QEMU/OVMF цього репозиторію — реальний вивід BDS, не опис про нього),
+або `general` (добре задокументована публічна архітектура платформ
+Intel/x86, не перевірена незалежно проти стану запобіжників кремнію
+саме цієї плати).
 
-## Phase 0 — physical / analog (general, not board-specific)
+## Фаза 0 — фізична / аналогова (general, не специфічна для плати)
 
-ATX PSU's 5VSB standby rail is live whenever the machine is plugged in,
-independent of the power switch. Pressing the power button pulls
-`PWR_BTN#` low; the motherboard's embedded controller / PCH power
-sequencing logic drives `PS_ON#` to bring up the main PSU rails, then
-sequences its own internal power planes (`RSMRST#`, the `SLP_S3#` /
-`SLP_S4#` / `SLP_S5#` state machine). Only once PCH's own power is
-stable does it release `PLTRST#` (platform reset), which is what
-actually releases the CPU from reset. None of this is verified against
-the H170-Gaming 3's own schematic — it is standard ATX/Intel platform
-design, cited as `general`, not `STATIC-CONFIRMED`.
+Чергова шина 5VSB блоку живлення ATX жива, доки машина увімкнена в
+розетку, незалежно від кнопки живлення. Натискання кнопки живлення
+тягне `PWR_BTN#` вниз; вбудований контролер материнської плати /
+логіка секвенування живлення PCH піднімає `PS_ON#`, щоб підняти
+основні шини блоку живлення, потім секвенує власні внутрішні площини
+живлення (`RSMRST#`, автомат станів `SLP_S3#`/`SLP_S4#`/`SLP_S5#`).
+Тільки коли живлення самого PCH стабільне, він звільняє `PLTRST#`
+(скидання платформи), що й реально звільняє CPU зі стану скидання.
+Нічого з цього не перевірено проти власної схеми H170-Gaming 3 — це
+стандартний дизайн платформи ATX/Intel, процитований як `general`, не
+`STATIC-CONFIRMED`.
 
-## Phase 1 — the Intel Management Engine boots first (general)
+## Фаза 1 — Intel Management Engine завантажується першим (general)
 
-Before the main CPU begins executing anything at all, the Intel
-Management Engine — a separate x86 core embedded in the PCH, running
-its own independent OS — boots on its own. The main CPU's reset
-sequence does not proceed until ME signals it is ready. This repo's
-own analysis did not parse the ME region's contents (`FIT-AND-STRUCTURE-ANALYSIS.md`
-explicitly noted this as out of scope — the ME region's 2,093,056
-bytes are `STATIC-CONFIRMED` present by size/offset, but not
-internally decoded). That ME exists and gates the main CPU's start is
-`general`, well-documented platform architecture, not something this
-repo independently confirmed for this exact firmware.
+Перш ніж головний CPU взагалі почне щось виконувати, Intel Management
+Engine — окреме x86-ядро, вбудоване в PCH, що виконує власну незалежну
+ОС — завантажується самостійно. Послідовність скидання головного CPU
+не продовжується, доки ME не подасть сигнал готовності. Власний аналіз
+цього репозиторію не розбирав вміст регіону ME (`FIT-AND-STRUCTURE-ANALYSIS.md`
+явно позначив це як поза межами обсягу — 2 093 056 байтів регіону ME
+`STATIC-CONFIRMED` присутні за розміром/офсетом, але не декодовані
+всередині). Те, що ME існує й контролює старт головного CPU — це
+`general`, добре задокументована архітектура платформи, а не щось, що
+цей репозиторій незалежно підтвердив для саме цієї прошивки.
 
-## Phase 2 — CPU reset, the FIT, and real microcode loading — STATIC-CONFIRMED which microcode
+## Фаза 2 — скидання CPU, FIT і реальне завантаження мікрокоду — STATIC-CONFIRMED який саме мікрокод
 
-The main CPU's reset vector has architecturally lived at
-`0xFFFFFFF0` since the 8086 — but on this platform generation, that is
-no longer the *first* thing executed. At reset, the CPU's own
-microcode reads a pointer at the fixed physical address `0xFFFFFFC0`
-(`general`, Intel's own published FIT specification) — **this repo
-already parsed that exact pointer on the real F22e image and found a
-valid `_FIT_` table there** (`FIT-AND-STRUCTURE-ANALYSIS.md`,
-`STATIC-CONFIRMED`). The FIT's Type 1 (Microcode Update) entries are
-processed *before* the legacy reset vector runs at all — this board's
-FIT has three, one matching the owner's exact CPU signature
-(`0x000506E3`): **revision `0xC2`, dated 2017-11-16**
-(`STATIC-CONFIRMED`, cross-confirmed by a second, independent tool
-finding the same blob set inside a named `CPU_MICROCODE_FILE_GUID`
-container). This is not a hypothetical step — it is the specific,
-identified microcode blob this exact board's firmware would load into
-this exact CPU at this exact phase, on every real cold boot.
+Вектор скидання головного CPU архітектурно живе за адресою
+`0xFFFFFFF0` ще з 8086 — але на цьому поколінні платформи це вже не
+*перше*, що виконується. При скиданні власний мікрокод CPU читає
+покажчик за фіксованою фізичною адресою `0xFFFFFFC0` (`general`,
+власна опублікована специфікація FIT від Intel) — **цей репозиторій
+уже розпарсив саме цей покажчик на реальному образі F22e і знайшов там
+чинну таблицю `_FIT_`** (`FIT-AND-STRUCTURE-ANALYSIS.md`,
+`STATIC-CONFIRMED`). Записи FIT типу 1 (Microcode Update) обробляються
+*до того*, як взагалі виконається легасі-вектор скидання — FIT цієї
+плати має три записи, один із яких збігається з точною сигнатурою CPU
+власника (`0x000506E3`): **ревізія `0xC2`, дата 2017-11-16**
+(`STATIC-CONFIRMED`, перехресно підтверджено другим, незалежним
+інструментом, що знайшов той самий набір blob-ів усередині контейнера
+з назвою `CPU_MICROCODE_FILE_GUID`). Це не гіпотетичний крок — це
+конкретний, ідентифікований блоб мікрокоду, який прошивка саме цієї
+плати завантажила б у саме цей CPU на саме цій фазі, при кожному
+реальному холодному завантаженні.
 
-## Phase 3 — Startup ACM / Boot Guard, if fused (general architecture; enforcement not verified)
+## Фаза 3 — Startup ACM / Boot Guard, якщо запобіжники прошиті (загальна архітектура; примусове застосування не перевірено)
 
-If the platform's write-once fuses require it, the CPU's microcode
-also reads the FIT's Type 2 (Startup ACM) entry, copies the
-Authenticated Code Module into CPU cache (cache-as-RAM, since no real
-DRAM is initialized yet — copying to cache first specifically prevents
-a flash-swap attack between verification and execution), and verifies
-its signature against a hardcoded Intel key. The ACM then runs in
-32-bit protected mode, reads the fused OEM public-key hash, and
-verifies the Initial Boot Block's signature before the microcode
-switches *back* to 16-bit real mode for legacy compatibility and hands
-off to the traditional reset vector.
+Якщо цього вимагають одноразові запобіжники платформи, мікрокод CPU
+також читає запис FIT типу 2 (Startup ACM), копіює Authenticated Code
+Module у кеш CPU (cache-as-RAM, оскільки реальна DRAM ще не
+ініціалізована — копіювання в кеш спочатку конкретно запобігає атаці
+підміни флеша між перевіркою й виконанням), і перевіряє його підпис
+проти жорстко вшитого ключа Intel. Потім ACM виконується в 32-бітному
+захищеному режимі, читає хеш публічного ключа OEM із запобіжників, і
+перевіряє підпис Initial Boot Block, перш ніж мікрокод перемикається
+*назад* у 16-бітний реальний режим для легасі-сумісності й передає
+керування традиційному вектору скидання.
 
-**This repo already found the concrete FIT entry this would use**:
-Type 2 "BIOS Startup Module (ACM)" at flash-mapped address
-`0xFFFF0000` (`FIT-AND-STRUCTURE-ANALYSIS.md`), matching a named
-`PEI_BIOS_ACM_FILE_GUID` FFS file (184,088 bytes) found independently
-by the second tool. **What is honestly `not-yet-verified`: whether
-Boot Guard is actually fused/enforced on this specific owner's board at
-all.** Its presence in the firmware image only proves the mechanism
-exists in the flash — most mainstream desktop boards (this H170 chipset
-is a mainstream consumer part, not a managed/enterprise SKU) ship with
-Boot Guard fuses left unprogrammed by the OEM, in which case this phase
-is present in the image but never actually enforced by the CPU. This is
-a real CPU/silicon fuse-state fact, not something readable from the
-firmware image alone, and was not checked this pass.
+**Цей репозиторій уже знайшов конкретний запис FIT, який це б
+використало**: тип 2 "BIOS Startup Module (ACM)" за flash-мапованою
+адресою `0xFFFF0000` (`FIT-AND-STRUCTURE-ANALYSIS.md`), що збігається
+з FFS-файлом на ім'я `PEI_BIOS_ACM_FILE_GUID` (184 088 байтів),
+знайденим незалежно другим інструментом. **Що чесно `not-yet-verified`:
+чи Boot Guard реально прошитий/примусово застосовується на цій
+конкретній платі власника взагалі.** Його присутність в образі
+прошивки доводить лише те, що механізм існує у флеш-пам'яті — більшість
+масових споживчих плат (цей чипсет H170 — масовий споживчий продукт,
+не керований/enterprise SKU) постачаються із запобіжниками Boot Guard,
+не прошитими OEM-виробником, і в такому разі ця фаза присутня в образі,
+але ніколи реально не застосовується CPU. Це реальний факт про стан
+запобіжників CPU/кремнію, не щось, що читається лише з образу
+прошивки, і в цьому проході не перевірялось.
 
-## Phase 4 — SEC (Security) phase (general)
+## Фаза 4 — фаза SEC (Security) (general)
 
-The earliest UEFI PI-spec phase. Runs with no real DRAM available yet
-— temporary storage lives in the CPU's own cache, configured as
-cache-as-RAM (CAR). Minimal code: locates and verifies the PEI
-Foundation, sets up a temporary stack, hands off.
+Найраніша фаза за специфікацією UEFI PI. Виконується без доступної
+реальної DRAM — тимчасове сховище живе у власному кеші CPU,
+налаштованому як cache-as-RAM (CAR). Мінімальний код: знаходить і
+перевіряє PEI Foundation, налаштовує тимчасовий стек, передає
+керування.
 
-## Phase 5 — PEI (Pre-EFI Initialization) — STATIC-CONFIRMED module presence
+## Фаза 5 — PEI (Pre-EFI Initialization) — STATIC-CONFIRMED присутність модулів
 
-PEI Modules (PEIMs) run here, most importantly the Memory Reference
-Code that actually trains and initializes the real DDR4 DIMMs (the
-owner's real `CT8G4DFS8213.C8FBD1` + `TEAMGROUP-UD4-2133` pair, per
-`OWNER-HARDWARE-PROFILE.md`) — this is the first point real system RAM
-becomes usable at all. This repo's own FFS inventory
-(`FIT-AND-STRUCTURE-ANALYSIS.md`) already found 164 FFS files of type
-`0x02` (PEIM) among this image's 780 total files, plus the specifically
-named `PEI_AP_STARTUP_FILE_GUID` file (Application-Processor bring-up
-— the mechanism that eventually brings the other 3 CPU cores online,
-directly relevant to a future "cores online" handoff-state field).
-PEI ends by building a HOB (Hand-Off Block) list describing what it
-found and handing control to DXE.
+Тут виконуються PEI-модулі (PEIM), найважливіше — Memory Reference
+Code, який реально тренує й ініціалізує реальні DDR4 DIMM-и (реальну
+пару власника `CT8G4DFS8213.C8FBD1` + `TEAMGROUP-UD4-2133`, за
+`OWNER-HARDWARE-PROFILE.md`) — це перша точка, де реальна системна RAM
+взагалі стає використовною. Власна інвентаризація FFS цього
+репозиторію (`FIT-AND-STRUCTURE-ANALYSIS.md`) уже знайшла 164
+FFS-файли типу `0x02` (PEIM) серед 780 файлів цього образу, плюс
+конкретно названий файл `PEI_AP_STARTUP_FILE_GUID` (запуск
+Application-Processor — механізм, що зрештою вводить в дію інші 3
+ядра CPU, прямо стосується майбутнього поля стану handoff "cores
+online"). PEI завершується побудовою списку HOB (Hand-Off Block), що
+описує знайдене, і передачею керування DXE.
 
-## Phase 6 — DXE (Driver Execution Environment) — STATIC-CONFIRMED table presence
+## Фаза 6 — DXE (Driver Execution Environment) — STATIC-CONFIRMED присутність таблиць
 
-The phase that does most of what people mean by "the BIOS": PCI
-enumeration, chipset/device driver dispatch, building the ACPI and
-SMBIOS tables an OS will later read. This repo already confirmed
-(`FIT-AND-STRUCTURE-ANALYSIS.md`) that the decompressed main firmware
-volume contains real `RSD PTR `, `FACP`, `APIC`, `MCFG`, `DMAR`,
-`HPET`, `DSDT` (×19), `SSDT` (×64), and SMBIOS entry-point signatures —
-and separately, `probe/handoff-probe.c`'s own real run
-(`probe/README.md`) directly read a live ACPI RSDP pointer and an
-SMBIOS pointer out of `SystemTable->ConfigurationTable`, confirming
-this phase's output is actually reachable at runtime, not just present
-as templates in flash. NVRAM variable stores (`NvramPei`/`NvramDxe`/
-`NvramSmm`) are also built/consulted here.
+Фаза, що робить більшість того, що люди мають на увазі під "BIOS":
+перерахування PCI, диспетчеризація драйверів чипсету/пристроїв,
+побудова таблиць ACPI й SMBIOS, які пізніше прочитає ОС. Цей
+репозиторій уже підтвердив (`FIT-AND-STRUCTURE-ANALYSIS.md`), що
+розпакований головний том прошивки містить реальні сигнатури
+`RSD PTR `, `FACP`, `APIC`, `MCFG`, `DMAR`, `HPET`, `DSDT` (×19),
+`SSDT` (×64) та точки входу SMBIOS — а окремо власний реальний запуск
+`probe/handoff-probe.c` (`probe/README.md`) напряму прочитав живий
+покажчик ACPI RSDP і покажчик SMBIOS з `SystemTable->ConfigurationTable`,
+підтверджуючи, що вивід цієї фази реально досяжний під час виконання,
+не лише присутній як шаблони у флеш-пам'яті. Сховища NVRAM-змінних
+(`NvramPei`/`NvramDxe`/`NvramSmm`) теж будуються/консультуються тут.
 
-## Phase 7 — BDS (Boot Device Selection) — LIVE-CONFIRMED, directly observed
+## Фаза 7 — BDS (Boot Device Selection) — LIVE-CONFIRMED, безпосередньо спостережено
 
-This is not inferred from documentation — **every single probe run in
-this repo's QEMU/OVMF setup, without exception, has printed this phase
-by name**:
+Це не висновок із документації — **буквально кожен запуск проби в
+налаштуванні QEMU/OVMF цього репозиторію, без винятку, друкував цю
+фазу за назвою**:
 
 ```text
 BdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
 BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
 ```
 
-BDS walks the boot-option variables (or, absent any, falls back to
-`\EFI\BOOT\BOOTX64.EFI` on a connected removable/fixed device, which is
-exactly the path every probe in this repo boots through) and transfers
-control to the chosen UEFI application — in this repo's case, our own
-probes; on the owner's real machine normally an OS's own boot loader.
+BDS обходить змінні опцій завантаження (або, за їх відсутності,
+падає назад на `\EFI\BOOT\BOOTX64.EFI` на підключеному знімному/
+фіксованому пристрої, саме тим шляхом, яким завантажується кожна проба
+цього репозиторію) і передає керування обраному UEFI-застосунку — у
+випадку цього репозиторію, нашим власним пробам; на реальній машині
+власника зазвичай власному завантажувачу ОС.
 
-## Phase 8 — Boot Services era, then the boundary this repo already crossed
+## Фаза 8 — ера Boot Services, потім межа, яку цей репозиторій уже перетнув
 
-From here, a loaded UEFI application (an OS loader, or this repo's own
-probes) can freely call Boot Services — console I/O, memory
-allocation, protocol location — exactly what `handoff-probe.c` used to
-read CR0/CR3/CR4/EFER/CPUID/live-microcode/memory-map/ACPI/SMBIOS/
-framebuffer (`probe/README.md`, `LIVE-CONFIRMED` for the QEMU/OVMF
-virtual environment). The final step — the one this repo has already
-**proven, not merely described** — is `ExitBootServices()`:
-`exit-boundary-probe.c` calls it for real, and with Boot Services
-(including the console) now genuinely invalid, proves continued
-liveness over a raw port-I/O serial channel with zero UEFI API left:
+Звідси завантажений UEFI-застосунок (завантажувач ОС, або власні проби
+цього репозиторію) може вільно викликати Boot Services — консольний
+ввід/вивід, виділення пам'яті, пошук протоколів — саме те, що
+`handoff-probe.c` використав, щоб прочитати CR0/CR3/CR4/EFER/CPUID/
+живий-мікрокод/карту-пам'яті/ACPI/SMBIOS/framebuffer (`probe/README.md`,
+`LIVE-CONFIRMED` для віртуального середовища QEMU/OVMF). Останній крок
+— той, що цей репозиторій уже **довів, а не лише описав** —
+`ExitBootServices()`: `exit-boundary-probe.c` реально його викликає, і
+з Boot Services (включно з консоллю), тепер справді недійсними,
+доводить продовження життєздатності через сирий канал serial port-I/O
+без жодного UEFI API:
 
 ```text
-BEFORE_EXIT           <- UEFI ConOut, Boot Services still valid
+BEFORE_EXIT              <- UEFI ConOut, Boot Services ще чинні
 ExitBootServices()
-AFTER_EXIT              <- raw port I/O to the 16550 UART at 0x3F8, no UEFI at all
-WSM_0_REACHED
+AFTER_EXIT                 <- сирий port-I/O на UART 16550 за 0x3F8, взагалі без UEFI
+RAW_CONTROL_REACHED
 ```
 
-Everything from Phase 0 through here is what firmware does *for* a
-future WSM entry point, not something WSM itself needs to reimplement,
-understand in full, or trust beyond what it can independently verify —
-per the standing distinction already recorded in
-`wsm/research/handoff-state.md`.
+Усе від Фази 0 до цього моменту — це те, що прошивка робить *для*
+майбутньої точки входу WSM, а не щось, що сама WSM мусить
+переімплементувати, повністю розуміти чи довіряти понад те, що вона
+може незалежно перевірити — за наявним стоячим розрізненням, уже
+записаним у `wsm/research/handoff-state.md`.
 
-## Sources
+## Джерела
 
 - [Intel Firmware Interface Table BIOS Specification, doc 599500](https://www.intel.com/content/dam/develop/external/us/en/documents/firmware-interface-table-bios-specification-r1p2p1.pdf)
 - [coreboot: Intel Firmware Interface Table](https://doc.coreboot.org/soc/intel/fit.html)
@@ -172,4 +177,16 @@ per the standing distinction already recorded in
 - [mjg59: Booting modern Intel CPUs](https://mjg59.dreamwidth.org/66109.html)
 - [Trammell Hudson: Bootguard](https://trmm.net/Bootguard/)
 - [Wikipedia: Reset vector](https://en.wikipedia.org/wiki/Reset_vector)
-- This repo's own: `hardware/bios-f22e/BINARY-ANALYSIS.md`, `hardware/bios-f22e/FIT-AND-STRUCTURE-ANALYSIS.md`, `docs/OWNER-HARDWARE-PROFILE.md`, `probe/README.md`
+- Власні: `hardware/bios-f22e/BINARY-ANALYSIS.md`, `hardware/bios-f22e/FIT-AND-STRUCTURE-ANALYSIS.md`, `docs/OWNER-HARDWARE-PROFILE.md`, `probe/README.md`
+
+---
+
+## What actually happens when the power turns on (English, secondary)
+
+Full phase-by-phase power-on sequence, from the physical power button
+through ME boot, CPU reset + FIT microcode loading (this board's own
+real microcode, revision `0xC2`), optional Boot Guard, SEC, PEI (real
+DRAM init), DXE (ACPI/SMBIOS), BDS (directly observed in every probe
+run), Boot Services, and the `ExitBootServices()` boundary this repo
+has already proven crossable (`RAW_CONTROL_REACHED`). See the Ukrainian
+version above for full detail and sources.
