@@ -10,6 +10,16 @@ targeted Intel-microcode-header scan.
 нижче — `source-confirmed`: прочитано напряму з байтів файлу, а не з
 опису про нього.
 
+**Role of this document, clarified 2026-09-02:** this is level-1 (STATIC
+IMAGE) evidence only — what physically sits in the flash. It is genuine
+hardware provenance and stays here as-is. What WSM actually needs is
+level-3 (HANDOFF STATE) — the exact machine state at the moment control
+passes to WSM's own code, which this document does not and cannot
+answer by itself. See `wsm/research/handoff-state.md` (the sibling
+`wsm` repo) for the three-level framing and a concrete demonstration —
+using this exact BIOS's own microcode question — of why the static
+image and the live machine can genuinely disagree.
+
 ## File classification
 
 `file H170G3.22e` → **"Intel serial flash for PCH ROM"**. Confirmed
