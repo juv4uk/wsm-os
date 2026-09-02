@@ -1,149 +1,161 @@
-# BIOS F22e — external research / зовнішнє дослідження
+# BIOS F22e — зовнішнє дослідження
 
-External-web corroboration for the BIOS version already confirmed live
-on the owner's board in `docs/OWNER-HARDWARE-PROFILE.md`
-(`SMBIOSBIOSVersion F22e`, American Megatrends Inc., live-queried twice:
-2026-08-29 and re-confirmed 2026-09-02). This document adds outside
-sources; it does not supersede the live system query, which remains the
-most authoritative single fact per the ecosystem's own evidence-priority
-ordering (accepted evidence > repository/live state > external
-documentation).
 Зовнішнє web-підтвердження версії BIOS, вже підтвердженої наживо на
-платі власника в `docs/OWNER-HARDWARE-PROFILE.md`. Цей документ додає
-зовнішні джерела; він не замінює живий системний запит, який лишається
-найавторитетнішим окремим фактом за власним порядком пріоритету доказів
-екосистеми.
+платі власника в `docs/OWNER-HARDWARE-PROFILE.md`
+(`SMBIOSBIOSVersion F22e`, American Megatrends Inc., живий запит двічі:
+2026-08-29 і перепідтверджено 2026-09-02). Цей документ додає зовнішні
+джерела; він не замінює живий системний запит, який лишається
+найавторитетнішим окремим фактом за власним порядком пріоритету
+доказів екосистеми (прийняті докази > стан репозиторію/живий стан >
+зовнішня документація).
 
-**Method:** `WebSearch` + `WebFetch`, 2026-09-02. Two direct fetches to
-`gigabyte.com` and `drivers.softpedia.com` returned HTTP 403 (blocked,
-not fetched — their content is not reproduced here, only what search
-snippets independently surfaced). A Wayback Machine fetch was attempted
-and is not supported by the available tool. No content from a blocked
-page is asserted below.
+**Метод:** `WebSearch` + `WebFetch`, 2026-09-02. Два прямі запити до
+`gigabyte.com` і `drivers.softpedia.com` повернули HTTP 403
+(заблоковано, не отримано — їхній вміст тут не відтворюється, лише те,
+що незалежно показали фрагменти пошуку). Спроба через Wayback Machine
+не підтримується наявним інструментом. Жоден вміст із заблокованої
+сторінки нижче не стверджується.
 
-## Board / BIOS identity
+## Ідентичність плати / BIOS
 
-- Board: Gigabyte **GA-H170-Gaming 3**, chipset H170, sockets for 6th/7th
-  Gen Intel Core, dual-channel DDR4 (4 DIMMs), dual PCIe Gen3 x4 M.2 —
-  matches the owner's live-confirmed board (`docs/OWNER-HARDWARE-PROFILE.md`:
-  Gigabyte H170-Gaming 3, i5-6400 = 6th Gen). `source-confirmed` (Softpedia
-  search snippet).
-- F22e exists as a release for **both board revisions**, rev. 1.0 and
-  rev. 1.1. The owner's own live query returned `Version: x.x` for
-  `Win32_BaseBoard`, which does not disambiguate the revision — **which
-  revision the owner's physical board actually is remains
-  `not-yet-verified`** from this research; it was not re-queried this
-  pass. `source-confirmed` that both variants exist; `unknown` which one
-  the owner has.
+- Плата: Gigabyte **GA-H170-Gaming 3**, чипсет H170, сокети для 6-го/7-го
+  покоління Intel Core, двоканальний DDR4 (4 DIMM), подвійний PCIe Gen3
+  x4 M.2 — збігається з живо підтвердженою платою власника
+  (`docs/OWNER-HARDWARE-PROFILE.md`: Gigabyte H170-Gaming 3, i5-6400 =
+  6-те покоління). `source-confirmed` (фрагмент пошуку Softpedia).
+- F22e існує як реліз для **обох ревізій плати**, rev. 1.0 і rev. 1.1.
+  Власний живий запит власника повернув `Version: x.x` для
+  `Win32_BaseBoard`, що не розрізняє ревізію — **яка саме ревізія
+  фізичної плати власника, лишається `not-yet-verified`** з цього
+  дослідження; не було повторно запитано в цьому проході.
+  `source-confirmed`, що обидва варіанти існують; `unknown`, який саме
+  має власник.
 
-## Release date — RESOLVED 2026-09-02 by the actual firmware file
+## Дата релізу — ВИРІШЕНО 2026-09-02 реальним файлом прошивки
 
-**Update:** the owner downloaded the actual F22e BIOS archive directly
-from Gigabyte and it is now archived at
-`hardware/bios-f22e/mb_bios_ga-h170-gaming3_f22e.zip` (SHA-256 in that
-directory's README). The ROM file's own internal timestamp —
-`H170G3.22e`, dated `2018-03-09 20:47` inside the zip — matches the
-owner's live-queried `ReleaseDate` exactly. This is now
-`source-confirmed` from the firmware file itself, not inferred. The
-discrepancy below is resolved: `driverscollection.com`'s "01 Apr 2021"
-is confirmed to be that mirror site's own indexing date, not the
-firmware's actual release date.
+**Оновлення:** власник завантажив реальний архів BIOS F22e напряму з
+Gigabyte, і тепер він заархівований у
+`hardware/bios-f22e/mb_bios_ga-h170-gaming3_f22e.zip` (SHA-256 у README
+тієї директорії). Власна внутрішня позначка часу ROM-файлу —
+`H170G3.22e`, дата `2018-03-09 20:47` всередині zip — точно збігається
+з `ReleaseDate`, отриманим із живого запиту власника. Це тепер
+`source-confirmed` із самого файлу прошивки, не висновок. Розбіжність
+нижче вирішена: "01 Apr 2021" від `driverscollection.com` підтверджено
+як дата власного індексування того дзеркального сайту, не реальна дата
+релізу прошивки.
 
 <details>
-<summary>Original discrepancy record (kept for the record, not deleted)</summary>
+<summary>Оригінальний запис розбіжності (лишено для запису, не видалено)</summary>
 
-- The owner's own machine reports `ReleaseDate: 2018-03-09` for this
-  exact BIOS (`Win32_BIOS`, queried live twice). `empirically confirmed`,
-  local run, WINDOWS-OBSERVED — the strongest evidence available here.
-- One WebSearch summary (aggregated, not a single primary source)
-  independently stated F22e/F22b were "released on 2018-04-03" — within
-  four weeks of the owner's own system's date, consistent enough to be
-  the same release cycle. `predicted` (aggregator summary, not a primary
-  page read directly).
-- `driverscollection.com`'s own listing states **"01 Apr 2021"** for the
-  same F22e file. This conflicts with both of the above by roughly three
-  years. It is far more likely this is the date that mirror site
-  indexed/re-hosted the file than the true firmware release date — a
-  common pattern for third-party driver-mirror sites — but this is
-  `predicted`, not confirmed; no primary Gigabyte page was successfully
-  read to settle it. **Do not treat driverscollection.com's date as
-  authoritative; the owner's own live system date is.**
+- Власна машина власника показує `ReleaseDate: 2018-03-09` для саме
+  цього BIOS (`Win32_BIOS`, запитано наживо двічі). `empirically
+  confirmed`, локальний запуск, WINDOWS-OBSERVED — найсильніший доказ,
+  доступний тут.
+- Одне резюме WebSearch (агреговане, не єдине першоджерело) незалежно
+  стверджувало, що F22e/F22b "випущено 2018-04-03" — у межах чотирьох
+  тижнів від дати власної системи власника, достатньо узгоджено, щоб
+  бути тим самим циклом релізу. `predicted` (резюме агрегатора, не
+  прочитана напряму першоджерельна сторінка).
+- Власний лістинг `driverscollection.com` стверджує **"01 Apr 2021"**
+  для того самого файлу F22e. Це конфліктує з обома пунктами вище
+  приблизно на три роки. Значно ймовірніше, що це дата, коли те
+  дзеркало проіндексувало/передзавантажило файл, а не реальна дата
+  релізу прошивки — типовий патерн для сторонніх сайтів-дзеркал
+  драйверів — але це `predicted`, не підтверджено; жодну першоджерельну
+  сторінку Gigabyte не вдалося успішно прочитати, щоб це вирішити. **Не
+  вважати дату `driverscollection.com` авторитетною; авторитетна —
+  власна жива системна дата власника.**
 
 </details>
 
 ## Changelog
 
-- Two independent mirror-site listings (Softpedia search snippet,
-  `driverscollection.com` direct fetch) give the same one-line
-  changelog: **"Update CPU Microcode."** `source-confirmed` from two
-  independent mirrors, but neither is Gigabyte's own official changelog
-  page — both direct fetches to `gigabyte.com` and to Softpedia's page
-  itself returned HTTP 403. No official first-party changelog text was
-  read.
+- Два незалежні лістинги дзеркальних сайтів (фрагмент пошуку Softpedia,
+  прямий запит `driverscollection.com`) дають однаковий однорядковий
+  changelog: **"Update CPU Microcode."** `source-confirmed` із двох
+  незалежних дзеркал, але жодне з них не є офіційною сторінкою
+  changelog самого Gigabyte — обидва прямі запити до `gigabyte.com` і
+  до самої сторінки Softpedia повернули HTTP 403. Жодного офіційного
+  першоджерельного тексту changelog не прочитано.
 
-## Plausible but NOT confirmed: Spectre/Meltdown link
+## Правдоподібно, але НЕ підтверджено: зв'язок зі Spectre/Meltdown
 
-F22e's live-confirmed release timing (2018-03-09) falls inside the
-industry-wide peak window (Jan–Apr 2018) for Intel microcode updates
-addressing Spectre variant 2 (CVE-2017-5715). Combined with the
-"Update CPU Microcode" changelog text, this is a **plausible** but
-**not source-confirmed** explanation for what F22e actually changed.
-Checked directly: the community-maintained
+Живо підтверджений час релізу F22e (2018-03-09) потрапляє в
+загальногалузеве пікове вікно (січень–квітень 2018) для оновлень
+мікрокоду Intel, що адресують Spectre variant 2 (CVE-2017-5715). У
+поєднанні з текстом changelog "Update CPU Microcode" це
+**правдоподібне**, але **не source-confirmed** пояснення того, що
+насправді змінив F22e. Перевірено напряму: трекер, що підтримується
+спільнотою,
 [`meltdown-spectre-bios-list`](https://github.com/mathse/meltdown-spectre-bios-list)
-tracker has no Gigabyte section at all, so it neither confirms nor
-denies this for this specific board. **`predicted`, not
-`source-confirmed`** — stated here as a hypothesis worth flagging, not
-a fact to build on.
+взагалі не має секції Gigabyte, тож він ні підтверджує, ні спростовує
+це для саме цієї плати. **`predicted`, не `source-confirmed`** —
+викладено тут як гіпотеза, варта позначення, не факт, на якому можна
+будувати.
 
-## Real forum reports found
+## Знайдені реальні звіти з форумів
 
-### Tom's Hardware — NOT an F22e defect (root cause was bad RAM)
+### Tom's Hardware — НЕ дефект F22e (корінна причина — погана RAM)
 
-A user reported upgrading this exact board from BIOS F5 to F22e at the
-same time as installing a new NVMe SSD, then hitting a boot loop (red
-Ambient LED, fans spin, repeated power-cycle, no boot screen). This
-could easily be *misread* as "F22e breaks NVMe boot" — it is not that.
-The thread's own resolution: after extensive troubleshooting (CMOS
-reset, battery swap, PSU swap, Memtest86, component swapping between
-machines), the user isolated the cause to **a specific pair of RAM
-DIMMs** — removing them fixed the machine, with the other RAM pair
-working fine. The BIOS update and the NVMe install were coincidental
-timing, not the cause. `source-confirmed` (thread read directly) that
-this was a RAM failure, not a firmware defect.
-[Tom's Hardware thread](https://forums.tomshardware.com/threads/gigabyte-ga-h170-gaming-3-is-not-working.3850371/)
+Користувач повідомив про оновлення саме цієї плати з BIOS F5 до F22e
+одночасно зі встановленням нового NVMe SSD, після чого зіткнувся з
+циклом перезавантаження (червоний Ambient LED, вентилятори крутяться,
+повторний цикл живлення, нема екрана завантаження). Це легко можна
+*неправильно прочитати* як "F22e ламає завантаження NVMe" — це не так.
+Власне вирішення теми: після ретельного усунення несправностей (скидання
+CMOS, заміна батарейки, заміна БЖ, Memtest86, обмін компонентами між
+машинами) користувач ізолював причину до **конкретної пари DIMM
+пам'яті** — їх видалення виправило машину, з іншою парою RAM, що
+працює нормально. Оновлення BIOS і встановлення NVMe збіглися за часом
+випадково, це не була причина. `source-confirmed` (тему прочитано
+напряму), що це була несправність RAM, не дефект прошивки.
+[Тема Tom's Hardware](https://forums.tomshardware.com/threads/gigabyte-ga-h170-gaming-3-is-not-working.3850371/)
 
-### AnandTech — different BIOS (F5-era), CSM/legacy quirk, not F22e
+### AnandTech — інший BIOS (ери F5), особливість CSM/legacy, не F22e
 
-A separate user on this board family reported that after updating to an
-early BIOS revision (their own numbering: "Revision 5", not F22e) and
-installing a Samsung 950 Pro NVMe SSD, none of their drives (including
-three legacy SATA drives) were detected. Resolution: switching CSM to
-"Legacy only" restored detection of the older drives; the NVMe drive
-worked despite not appearing as a listed PCIe device in BIOS. This
-report predates F22e by many BIOS revisions and is not about F22e
-itself — included only as background on this board family's known
-early NVMe/CSM sensitivity, not as evidence about the owner's actual
-installed version. `source-confirmed` (thread read directly), but
-`not-applicable` to F22e specifically.
-[AnandTech thread](https://forums.anandtech.com/threads/gigabyte-h170-gamer-3-and-nvme-issues.2481416/)
+Інший користувач із цього сімейства плат повідомив, що після оновлення
+до ранньої ревізії BIOS (за їхньою власною нумерацією: "Revision 5",
+не F22e) і встановлення Samsung 950 Pro NVMe SSD жоден із його дисків
+(включно з трьома legacy SATA-дисками) не виявлявся. Вирішення:
+перемикання CSM на "Legacy only" відновило виявлення старіших дисків;
+NVMe-диск працював, попри те, що не з'являвся як перелічений
+PCIe-пристрій у BIOS. Цей звіт передує F22e багатьма ревізіями BIOS і
+не стосується самого F22e — включено лише як контекст про відому ранню
+чутливість цього сімейства плат до NVMe/CSM, не як доказ про реально
+встановлену версію власника. `source-confirmed` (тему прочитано
+напряму), але `not-applicable` до саме F22e.
+[Тема AnandTech](https://forums.anandtech.com/threads/gigabyte-h170-gamer-3-and-nvme-issues.2481416/)
 
-## Relevance to wsm-os
+## Стосунок до wsm-os
 
-No forum evidence found links F22e itself to any defect. Neither report
-above is actually about F22e causing a problem (one is a coincidental
-RAM failure, the other is a different, much older BIOS). The owner's
-live-confirmed NVMe drive (Kingston `SNV2S1000G`, `Status: OK`) has not
-shown any symptom matching either report. This does not change any
-existing architecture decision in `OWNER-HARDWARE-PROFILE.md` — physical
-BIOS-level boot work remains deferred regardless (decision #2, QEMU
-first).
+Жодного доказу з форумів, що пов'язує сам F22e з будь-яким дефектом,
+не знайдено. Жоден зі звітів вище насправді не про те, що F22e
+спричиняє проблему (один — випадкова несправність RAM, інший —
+геть інший, набагато старіший BIOS). Живо підтверджений NVMe-диск
+власника (Kingston `SNV2S1000G`, `Status: OK`) не показав жодного
+симптому, що збігається з будь-яким зі звітів. Це не змінює жодного
+наявного архітектурного рішення в `OWNER-HARDWARE-PROFILE.md` — робота
+з фізичним завантаженням на рівні BIOS лишається відкладеною незалежно
+від цього (рішення №2, QEMU спочатку).
 
-## Sources
+## Джерела
 
-- [Softpedia: GA-H170-Gaming 3 (rev. 1.1) BIOS F22e](https://drivers.softpedia.com/get/BIOS/Gigabyte/Gigabyte-GA-H170-Gaming-3-rev-1-1-BIOS-F22e.shtml) — fetch blocked (403); title/metadata only, via search snippet
-- [Softpedia: GA-H170-Gaming 3 (rev. 1.0) BIOS F22e](https://drivers.softpedia.com/get/BIOS/Gigabyte/Gigabyte-GA-H170-Gaming-3-rev-1-0-BIOS-F22e.shtml) — same
-- [driverscollection.com: BIOS v.F22e](https://driverscollection.com/_53541113472cbeef773536c45d4/Download-Gigabyte-GA-H170-Gaming-3-(rev.-1.1)-BIOS-v.F22e-free) — fetched directly
-- [GIGABYTE GA-H170-Gaming 3 (rev. 1.1) support page](https://www.gigabyte.com/Motherboard/GA-H170-Gaming-3-rev-11/support) — fetch blocked (403), not read
-- [Tom's Hardware: "Gigabyte GA-H170-Gaming 3 is not working?"](https://forums.tomshardware.com/threads/gigabyte-ga-h170-gaming-3-is-not-working.3850371/) — fetched and read directly
-- [AnandTech: "Gigabyte H170 Gamer 3 and NVMe issues"](https://forums.anandtech.com/threads/gigabyte-h170-gamer-3-and-nvme-issues.2481416/) — fetched and read directly
-- [mathse/meltdown-spectre-bios-list (GitHub)](https://github.com/mathse/meltdown-spectre-bios-list) — fetched and read directly; no Gigabyte entry
+- [Softpedia: GA-H170-Gaming 3 (rev. 1.1) BIOS F22e](https://drivers.softpedia.com/get/BIOS/Gigabyte/Gigabyte-GA-H170-Gaming-3-rev-1-1-BIOS-F22e.shtml) — запит заблоковано (403); лише назва/метадані, через фрагмент пошуку
+- [Softpedia: GA-H170-Gaming 3 (rev. 1.0) BIOS F22e](https://drivers.softpedia.com/get/BIOS/Gigabyte/Gigabyte-GA-H170-Gaming-3-rev-1-0-BIOS-F22e.shtml) — так само
+- [driverscollection.com: BIOS v.F22e](https://driverscollection.com/_53541113472cbeef773536c45d4/Download-Gigabyte-GA-H170-Gaming-3-(rev.-1.1)-BIOS-v.F22e-free) — отримано напряму
+- [Сторінка підтримки GIGABYTE GA-H170-Gaming 3 (rev. 1.1)](https://www.gigabyte.com/Motherboard/GA-H170-Gaming-3-rev-11/support) — запит заблоковано (403), не прочитано
+- [Tom's Hardware: "Gigabyte GA-H170-Gaming 3 is not working?"](https://forums.tomshardware.com/threads/gigabyte-ga-h170-gaming-3-is-not-working.3850371/) — отримано й прочитано напряму
+- [AnandTech: "Gigabyte H170 Gamer 3 and NVMe issues"](https://forums.anandtech.com/threads/gigabyte-h170-gamer-3-and-nvme-issues.2481416/) — отримано й прочитано напряму
+- [mathse/meltdown-spectre-bios-list (GitHub)](https://github.com/mathse/meltdown-spectre-bios-list) — отримано й прочитано напряму; нема секції Gigabyte
+
+---
+
+## BIOS F22e — external research (English, secondary)
+
+External-web corroboration for the BIOS version already confirmed live
+on the owner's board. Board/BIOS identity, release date (now resolved
+by the actual firmware file's own internal timestamp), changelog
+("Update CPU Microcode"), the plausible-but-unconfirmed Spectre/Meltdown
+link, two real forum reports checked and found not to implicate F22e
+itself, and full sources. See the Ukrainian version above for complete
+detail.
