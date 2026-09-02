@@ -107,10 +107,10 @@ The criterion, run for real, twice, from a clean rebuild both times
 (2026-09-02):
 
 ```text
-BEFORE_EXIT          <- printed via UEFI ConOut, Boot Services still valid
-ExitBootServices()   <- a real call, real retry-on-stale-map-key loop, succeeded on the first attempt both runs
-AFTER_EXIT            <- printed via raw port I/O to the 16550 UART at 0x3F8, NO UEFI API used
-WSM_0_REACHED         <- same raw channel, after `cli` and nothing else
+BEFORE_EXIT            <- printed via UEFI ConOut, Boot Services still valid
+ExitBootServices()     <- a real call, real retry-on-stale-map-key loop, succeeded on the first attempt both runs
+AFTER_EXIT              <- printed via raw port I/O to the 16550 UART at 0x3F8, NO UEFI API used
+RAW_CONTROL_REACHED     <- same raw channel, after `cli` and nothing else
 ```
 
 No OS, no allocator, no scheduler, no Lisp, no Rust runtime — not even
@@ -120,7 +120,14 @@ to `wsm`'s own architecture (see the owner's own `()`-preservation
 discipline in `wsm/docs/ROADMAP.md`), not something to rush inside a
 wsm-os lab probe just because a halt loop needed *something* to do.
 Reaching a point of pure, UEFI-independent control and proving it —
-nothing else — is the entire claim `WSM_0_REACHED` makes.
+nothing else — is the entire claim `RAW_CONTROL_REACHED` makes.
+
+**Naming correction, same day (owner's own review):** the final marker
+was originally `WSM_0_REACHED`. That overstated the claim — no `wsm`
+code runs in this probe at all, only this file's own halt loop.
+Renamed to `RAW_CONTROL_REACHED` so it cannot later be misread as
+WSM's own first state; `WSM_0_REACHED` is reserved for when code that
+actually lives in the `wsm` repo runs its own first real state.
 
 **Architectural boundary, stated in the source file itself**: this
 probe — gnu-efi's headers, clang's COFF target, OVMF, QEMU, the whole

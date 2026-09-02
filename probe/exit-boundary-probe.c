@@ -13,11 +13,21 @@
  *   [no UEFI used from here on]
  *   raw channel:  AFTER_EXIT
  *   assembly:     ()
- *   raw channel:  WSM_0_REACHED
+ *   raw channel:  RAW_CONTROL_REACHED
  *
  * Deliberately not doing: an OS, an allocator, a scheduler, Lisp, a
  * Rust runtime, or even canonical `t`. Reaching a point of pure,
  * UEFI-independent control and proving it -- nothing else.
+ *
+ * NAMING CORRECTION (owner's own review, same day): the final marker
+ * was first called WSM_0_REACHED. That overstates the claim -- no WSM
+ * code runs here at all, only this probe's own halt loop. What is
+ * actually proven is narrower and prior to WSM: "post-UEFI raw control
+ * reached." Renamed to RAW_CONTROL_REACHED so the marker cannot later
+ * be misread as WSM's own first state; WSM_0_REACHED is reserved for
+ * whenever code that actually lives in the `wsm` repo runs its own
+ * first real state, not a wsm-os lab probe's proof that the boundary
+ * is crossable.
  *
  * "()" itself is deliberately NOT encoded here. Choosing a bit
  * pattern for () is real design work belonging to wsm's own
@@ -133,8 +143,9 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
   /* "assembly only" -- this is the whole of it. No () encoding chosen
    * here; see the file header. Reaching this halt, with nothing else
-   * running and no UEFI left underneath, is the entire claim. */
-  raw_puts("WSM_0_REACHED\n");
+   * running and no UEFI left underneath, is the entire claim -- not
+   * "WSM reached," only "raw control reached." */
+  raw_puts("RAW_CONTROL_REACHED\n");
 
   for (;;) {
     __asm__ __volatile__("hlt");

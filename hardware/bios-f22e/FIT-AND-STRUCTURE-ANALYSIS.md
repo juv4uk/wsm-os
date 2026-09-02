@@ -186,5 +186,7 @@ Steps 1, 4, 5 are now solidly done; 2/3 done at the structural-inventory
 level (not a full per-module hash/dependency-expression walk); 6 is
 presence-only for NVRAM; 7 is presence-only for ACPI/SMBIOS. Steps 8-10
 — live post-boot register/MSR/memory-map state, a minimal UEFI probe,
-and the actual handoff-boundary experiment — are separate, larger work,
-tracked in `wsm/research/handoff-state.md`.
+and the actual handoff-boundary experiment — are also now done, in
+`probe/handoff-probe.c` and `probe/exit-boundary-probe.c` (see
+`probe/README.md`); the sibling `wsm` repo's `research/handoff-state.md`
+keeps only the conclusions this implies for WSM's own design.

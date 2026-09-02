@@ -10,15 +10,26 @@ targeted Intel-microcode-header scan.
 нижче — `source-confirmed`: прочитано напряму з байтів файлу, а не з
 опису про нього.
 
-**Role of this document, clarified 2026-09-02:** this is level-1 (STATIC
-IMAGE) evidence only — what physically sits in the flash. It is genuine
-hardware provenance and stays here as-is. What WSM actually needs is
-level-3 (HANDOFF STATE) — the exact machine state at the moment control
-passes to WSM's own code, which this document does not and cannot
-answer by itself. See `wsm/research/handoff-state.md` (the sibling
-`wsm` repo) for the three-level framing and a concrete demonstration —
-using this exact BIOS's own microcode question — of why the static
-image and the live machine can genuinely disagree.
+**Role of this document, clarified 2026-09-02:** firmware research only
+matters to WSM insofar as it helps determine WSM's own initial
+conditions, not as archaeology for its own sake. Three levels of such
+research exist, and only the third is what WSM actually needs:
+
+```text
+1. STATIC IMAGE      -- what physically sits in flash/ROM (this document)
+2. BOOT BEHAVIOUR     -- what firmware actually does to the CPU
+3. HANDOFF STATE      -- the exact machine state when control passes onward
+```
+
+This document is level 1 only — genuine hardware provenance, stays
+here as-is, but does not by itself answer what WSM needs. `probe/` in
+this same repo does level 3 directly (`handoff-probe.c`,
+`exit-boundary-probe.c`). A concrete demonstration of why level 1 and
+level 3 can genuinely disagree — this exact BIOS's own microcode
+question — is in `FIT-AND-STRUCTURE-ANALYSIS.md`. The sibling `wsm`
+repo's `research/handoff-state.md` keeps only the conclusions this
+work implies for WSM's own design, not this framework or the evidence
+behind it — this document is the source of record for both.
 
 ## File classification
 
