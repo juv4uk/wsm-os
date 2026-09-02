@@ -1,192 +1,211 @@
-# F22e — flash region map, FIT, and the real microcode path
+# F22e — карта регіонів flash, FIT і реальний шлях мікрокоду
 
-Direct structural analysis of `H170G3.22e`, 2026-09-02, following the
-owner's own ten-step research program (steps 1, 2/3, 4/5, 6 partial, 7
-partial below; step 8/9 — live handoff-state probe — is separate work,
-see `wsm/research/handoff-state.md`). Every claim below is labeled per
-his requested three-tier discipline:
+Пряме структурне дослідження `H170G3.22e`, 2026-09-02, за власною
+десятикроковою дослідницькою програмою власника (кроки 1, 2/3, 4/5,
+6 частково, 7 частково нижче; крок 8/9 — жива проба handoff-state —
+окрема робота, див. `wsm/research/handoff-state.md`). Кожне твердження
+нижче позначено за запитаною ним трирівневою дисципліною:
 
-- **STATIC-CONFIRMED** — read directly from the firmware bytes.
-- **LIVE-CONFIRMED** — measured on the real, running machine.
-- **INFERRED** — a reasoned conclusion, not a direct observation of either.
+- **STATIC-CONFIRMED** — прочитано напряму з байтів прошивки.
+- **LIVE-CONFIRMED** — виміряно на реальній, працюючій машині.
+- **INFERRED** — обґрунтований висновок, не пряме спостереження жодного з двох.
 
-Tools: a hand-written Python parser for the Intel Flash Descriptor and
-the FIT table (the format is public and well-documented; parsing it
-directly avoids depending on a GUI-only tool); `uefi_firmware` (a
-headless Python FV/FFS parser, `pip install uefi_firmware`) for the
-region map cross-check and the full module inventory; `UEFITool`
-(installed via Guix) was also tried but is GUI-only in this environment
-(no headless CLI companion binary in this Guix package) — it opened a
-real window on the owner's desktop via WSLg, but nothing in this
-document was extracted from it; everything here comes from the two
-scriptable tools instead, so the result is reproducible.
+Інструменти: власноруч написаний Python-парсер для Intel Flash
+Descriptor і таблиці FIT (формат публічний і добре задокументований;
+пряме парсення уникає залежності від GUI-лише-інструмента);
+`uefi_firmware` (headless Python-парсер FV/FFS, `pip install
+uefi_firmware`) для перехресної перевірки карти регіонів і повної
+інвентаризації модулів; `UEFITool` (встановлений через Guix) теж
+пробувався, але GUI-лише в цьому середовищі (нема headless
+CLI-компаньйона в цьому Guix-пакеті) — він відкрив реальне вікно на
+робочому столі власника через WSLg, але нічого в цьому документі з
+нього не витягнуто; усе тут походить із двох скриптованих
+інструментів натомість, тож результат відтворюваний.
 
-## 1. Flash region map — STATIC-CONFIRMED
+## 1. Карта регіонів flash — STATIC-CONFIRMED
 
 ```text
-image size: 0x800000 (8 MiB)
+розмір образу: 0x800000 (8 МіБ)
 
-Descriptor region:  0x000000 - 0x000FFF   (4 KiB, implicit — everything
-                                            before the ME region starts)
-ME region:           0x001000 - 0x1FFFFF  (0x1FF000 = 2,093,056 bytes)
-BIOS region:         0x200000 - 0x7FFFFF  (0x600000 = 6,291,456 bytes)
-GbE region:           not populated (size 0 — no GbE PHY firmware present)
-PDR region:            not populated (size 0)
+Регіон Descriptor:  0x000000 - 0x000FFF   (4 КіБ, неявно — усе перед
+                                            початком регіону ME)
+Регіон ME:           0x001000 - 0x1FFFFF  (0x1FF000 = 2 093 056 байтів)
+Регіон BIOS:         0x200000 - 0x7FFFFF  (0x600000 = 6 291 456 байтів)
+Регіон GbE:           не заповнений (розмір 0 — нема прошивки GbE PHY)
+Регіон PDR:            не заповнений (розмір 0)
 ```
 
-Cross-checked two ways: a hand-written parser of `FLMAP0` and the
-Flash Region array following the `5A A5 F0 0F` descriptor signature at
-offset `0x10`, and independently by `uefi_firmware`'s own
-`FlashDescriptor.showinfo()` — both agree exactly. `2,093,056 +
-6,291,456 = 8,384,512`; plus the 4 KiB descriptor region = `8,388,608`
-= the file's exact size. The map is internally consistent, not just
-plausible-looking.
+Перехресно перевірено двома способами: власноруч написаним парсером
+`FLMAP0` і масиву Flash Region за сигнатурою дескриптора `5A A5 F0 0F`
+за офсетом `0x10`, і незалежно власним `FlashDescriptor.showinfo()`
+бібліотеки `uefi_firmware` — обидва збігаються точно. `2 093 056 +
+6 291 456 = 8 384 512`; плюс 4-КіБ регіон дескриптора = `8 388 608` =
+точний розмір файлу. Карта внутрішньо узгоджена, не просто виглядає
+правдоподібно.
 
-The ME (Management Engine) region's own internal contents were not
-parsed — Intel ME firmware uses a separate, largely proprietary format
-that neither tool here attempts to decode, and that was out of scope
-for this pass. Its region boundary is `STATIC-CONFIRMED`; its contents
-are `not-yet-verified`.
+Власний внутрішній вміст регіону ME (Management Engine) не розібрано —
+прошивка Intel ME використовує окремий, значною мірою пропрієтарний
+формат, який жоден із інструментів тут не намагається декодувати, і
+це було поза межами обсягу цього проходу. Її межі регіону —
+`STATIC-CONFIRMED`; її вміст — `not-yet-verified`.
 
-## 2/3. Firmware Volume / FFS module inventory — STATIC-CONFIRMED
+## 2/3. Інвентаризація модулів Firmware Volume / FFS — STATIC-CONFIRMED
 
-`uefi_firmware` parsed the BIOS region into **12 Firmware Volumes
-containing 780 total files**. The library recognizes and names a set of
-well-known component GUIDs (not every file has a name — most are
-anonymous raw/compressed/GUID-defined data, correctly reported as such
-rather than guessed). File-type distribution across all 780 files (FFS
-file type byte, most common first): `0x15`(616), `0x14`(606),
+`uefi_firmware` розпарсив регіон BIOS на **12 Firmware Volume, що
+містять 780 файлів загалом**. Бібліотека розпізнає й називає набір
+добре відомих GUID компонентів (не кожен файл має ім'я — більшість —
+анонімні raw/стиснуті/GUID-визначені дані, коректно повідомлені як
+такі, а не вгадані). Розподіл типів файлів по всіх 780 файлах (байт
+типу файлу FFS, найпоширеніші спочатку): `0x15`(616), `0x14`(606),
 `0x10`(500), `0x07`(372), `0x13`(310), `0x19`(182), `0x02`(164, PEIM),
 `0x1c`(118), `0x0a`(118), `0x1b`(114), `0x06`(114), `0x12`(110),
-`0x18`(32), `0xf0`(28, padding), `0x01`(22, raw), plus a handful of
-single-digit-count rarer types. (Note: the parse was run in a way that
-double-emitted its own summary once; the 12/780 counts above are the
-correct, deduplicated totals from the underlying object graph, not the
-doubled printed output.)
+`0x18`(32), `0xf0`(28, padding), `0x01`(22, raw), плюс жменя рідкісніших
+типів з одноцифровою кількістю. (Примітка: парсинг запустився так, що
+одного разу двічі видав власне резюме; числа 12/780 вище — коректні,
+дедубльовані підсумки з базового графу об'єктів, не подвоєний
+виведений вивід.)
 
-Confirmed NVRAM variable stores exist in the BIOS region (three named
-stores: `NvramPei`, `NvramDxe`, `NvramSmm`) — this is the real
-mechanism boot entries, Secure Boot state, and platform configuration
-would live in on the running board; their actual variable *contents*
-were not extracted this pass (the parser reported the store structures
-and one variable count, not a full variable dump) — `not-yet-verified`
-beyond store presence.
+Підтверджено, що сховища NVRAM-змінних існують у регіоні BIOS (три
+названі сховища: `NvramPei`, `NvramDxe`, `NvramSmm`) — це реальний
+механізм, у якому на працюючій платі жили б записи завантаження, стан
+Secure Boot і конфігурація платформи; реальний *вміст* змінних не
+витягувався в цьому проході (парсер повідомив структури сховищ і одну
+кількість змінних, не повне вивантаження) — `not-yet-verified` поза
+самою присутністю сховищ.
 
-## 4/5. The real microcode path — STATIC-CONFIRMED, cross-confirmed two independent ways
+## 4/5. Реальний шлях мікрокоду — STATIC-CONFIRMED, перехресно підтверджено двома незалежними способами
 
-### Path A: the Firmware Interface Table (FIT)
+### Шлях A: Firmware Interface Table (FIT)
 
-The FIT pointer lives at the architecturally fixed flash-mapped address
-`0xFFFFFFC0` (file offset `0x7FFFC0` for this 8 MiB image, since the
-image maps to the top of the 4 GiB address space). It resolves to a
-real FIT table at file offset `0x5D0100`, header signature `_FIT_   `
-confirmed byte-for-byte, `7` entries:
+Покажчик FIT живе за архітектурно фіксованою flash-мапованою адресою
+`0xFFFFFFC0` (офсет файлу `0x7FFFC0` для цього 8-МіБ образу, оскільки
+образ мапується на верхівку 4-ГіБ адресного простору). Він
+розв'язується в реальну таблицю FIT за офсетом файлу `0x5D0100`,
+сигнатура заголовка `_FIT_   ` підтверджена побайтово, `7` записів:
 
 ```text
-[0] FIT Header
-[1] Microcode Update  addr=0xFFDD0400 -> offset 0x5D0400
-[2] Microcode Update  addr=0xFFDE7C00 -> offset 0x5E7C00
-[3] Microcode Update  addr=0xFFE00000 -> offset 0x600000
+[0] Заголовок FIT
+[1] Microcode Update  addr=0xFFDD0400 -> офсет 0x5D0400
+[2] Microcode Update  addr=0xFFDE7C00 -> офсет 0x5E7C00
+[3] Microcode Update  addr=0xFFE00000 -> офсет 0x600000
 [4] BIOS Startup Module (ACM)  addr=0xFFFF0000
-[5] CSE Secure Boot   addr=0xFFFF9100  size=577
-[6] type 0x0C (unrecognized in this parse)  addr=0xFFFF8080  size=735
+[5] CSE Secure Boot   addr=0xFFFF9100  розмір=577
+[6] тип 0x0C (не розпізнано цим парсингом)  addr=0xFFFF8080  розмір=735
 ```
 
-Reading the real 48-byte Intel microcode header at each of the three
-Microcode Update entries (all three decode as `hdrver=1, ldrver=1` —
-structurally valid):
+Читання реального 48-байтного заголовка мікрокоду Intel у кожному з
+трьох записів Microcode Update (усі три декодуються як `hdrver=1,
+ldrver=1` — структурно чинно):
 
-| Offset | CPU signature | Revision | Date | Platform flags | Total size |
+| Офсет | Сигнатура CPU | Ревізія | Дата | Прапорці платформи | Загальний розмір |
 |---|---|---:|---|---|---:|
-| `0x5D0400` | `0x000506E8` | `0x34` | 2016-07-10 | `0x22` | 96,256 B |
-| `0x5E7C00` | **`0x000506E3`** | **`0xC2`** | **2017-11-16** | `0x36` | 99,328 B |
-| `0x600000` | `0x000906E9` | `0x84` | 2018-01-21 | `0x2A` | 98,304 B |
+| `0x5D0400` | `0x000506E8` | `0x34` | 2016-07-10 | `0x22` | 96 256 Б |
+| `0x5E7C00` | **`0x000506E3`** | **`0xC2`** | **2017-11-16** | `0x36` | 99 328 Б |
+| `0x600000` | `0x000906E9` | `0x84` | 2018-01-21 | `0x2A` | 98 304 Б |
 
-**The middle entry (`0x000506E3`) is the owner's exact CPU signature**
-(family 6, model 94 `0x5E`, stepping 3 — `lscpu`-confirmed, see
-`OWNER-HARDWARE-PROFILE.md`). This BIOS embeds microcode for three
-different Skylake/Kaby Lake steppings (backward/forward SKU coverage in
-one board image, consistent with the "Skylake DT/Halo/ULT/ULX" +
-"KBL PCH H" strings already found in `BINARY-ANALYSIS.md`); only one of
-the three matches this exact processor.
+**Середній запис (`0x000506E3`) — точна сигнатура CPU власника**
+(family 6, model 94 `0x5E`, stepping 3 — підтверджено `lscpu`, див.
+`OWNER-HARDWARE-PROFILE.md`). Цей BIOS вбудовує мікрокод для трьох
+різних степінгів Skylake/Kaby Lake (зворотне/пряме покриття SKU в
+одному образі плати, узгоджено з рядками "Skylake DT/Halo/ULT/ULX" +
+"KBL PCH H", уже знайденими в `BINARY-ANALYSIS.md`); лише один із
+трьох збігається з саме цим процесором.
 
-*(Note: the earlier raw byte-pattern scan in `BINARY-ANALYSIS.md`
-searched for `0x000506E3` and found nothing — that scan was run against
-the raw file and the one large decompressed DXE volume, but this
-microcode container turns out to live in a *different*, smaller
-Firmware Volume the earlier pass didn't decompress. The FIT pointer
-resolves directly to the correct location regardless of which volume
-holds it, which is exactly why FIT lookup is the stronger method the
-owner recommended over raw scanning.)*
+*(Примітка: раніший сирий пошук байтового патерну в
+`BINARY-ANALYSIS.md` шукав `0x000506E3` і нічого не знайшов — той
+пошук виконувався проти сирого файлу й одного великого розпакованого
+тому DXE, але цей контейнер мікрокоду насправді живе в *іншому*,
+меншому Firmware Volume, який раніший прохід не розпаковував. Покажчик
+FIT розв'язується прямо в правильне місце незалежно від того, який том
+його утримує, і саме тому пошук через FIT — сильніший метод, який
+власник рекомендував замість сирого сканування.)*
 
-### Path B: the named FFS container — independent cross-check
+### Шлях B: названий FFS-контейнер — незалежна перехресна перевірка
 
-`uefi_firmware`'s module inventory separately found a file with a
-**recognized, named GUID**:
+Інвентаризація модулів `uefi_firmware` окремо знайшла файл із
+**розпізнаним, названим GUID**:
 
 ```text
 17088572-377f-44ef-8f4e-b09fff46a070 (CPU_MICROCODE_FILE_GUID)
-type 0x01 (raw), size 0x49C28 (302,120 bytes)
+тип 0x01 (raw), розмір 0x49C28 (302 120 байтів)
 ```
 
-302,120 bytes is consistent with holding all three microcode blobs
-(96,256 + 99,328 + 98,304 = 293,888 bytes) plus FFS/section header
-overhead (~8 KB) — the FIT-located blobs and this named container agree
-with each other. Two independently-implemented methods (a hand-rolled
-FIT parser reading raw pointers, and a separate library's FFS/GUID
-walk) converge on the same real microcode set. This is now
-`STATIC-CONFIRMED` at a materially stronger level than the earlier
-raw-scan attempt — located by structure, not by searching for a byte
-pattern and hoping.
+302 120 байтів узгоджується з утриманням усіх трьох блобів мікрокоду
+(96 256 + 99 328 + 98 304 = 293 888 байтів) плюс накладні витрати
+заголовків FFS/секцій (~8 КБ) — знайдені через FIT блоби й цей названий
+контейнер узгоджуються один з одним. Два незалежно реалізовані методи
+(власноруч написаний парсер FIT, що читає сирі покажчики, і обхід
+FFS/GUID окремої бібліотеки) сходяться на тому самому реальному наборі
+мікрокоду. Це тепер `STATIC-CONFIRMED` на суттєво сильнішому рівні, ніж
+раніша спроба сирого сканування — знайдено за структурою, не пошуком
+байтового патерну навмання.
 
-Two other CPU/boot-relevant named files were also found:
-`PEI_BIOS_ACM_FILE_GUID` (`2d27c618-7dcd-41f5-bb10-21166be7e143`, the
-Authenticated Code Module referenced by FIT entry `[4]`, 184,088 bytes)
-and `PEI_AP_STARTUP_FILE_GUID` (`d1e59f50-e8c3-4545-bf61-11f002233c97`,
-257 bytes) — the latter is the real Application-Processor bring-up code
-path, directly relevant to a future "cores online" handoff-state field.
+Також знайдено два інші названі файли, релевантні для CPU/завантаження:
+`PEI_BIOS_ACM_FILE_GUID` (`2d27c618-7dcd-41f5-bb10-21166be7e143`,
+Authenticated Code Module, на який посилається запис FIT `[4]`,
+184 088 байтів) і `PEI_AP_STARTUP_FILE_GUID`
+(`d1e59f50-e8c3-4545-bf61-11f002233c97`, 257 байтів) — останній є
+реальним шляхом коду запуску Application-Processor, прямо стосується
+майбутнього поля стану handoff "cores online".
 
-## This BIOS's own embedded microcode vs. the live machine — the divergence, now fully confirmed both sides
+## Власний вбудований мікрокод цього BIOS проти живої машини — розбіжність, тепер повністю підтверджена з обох боків
 
-Combined with the prior session's live finding: the currently-loaded
-microcode revision on the real machine is `0xD6`
-(`LIVE-CONFIRMED`, via Windows registry
+У поєднанні з живою знахідкою попередньої сесії: зараз завантажена
+ревізія мікрокоду на реальній машині — `0xD6` (`LIVE-CONFIRMED`, через
+реєстр Windows
 `HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0\Update Revision`,
-cross-referenced against Debian's `intel-microcode` changelog:
+перехресно звірено з changelog `intel-microcode` від Debian:
 `sig 0x000506e3, pf_mask 0x36, 2019-10-03, rev 0x00d6`).
 
-F22e's own embedded microcode for this exact CPU signature is now
-`STATIC-CONFIRMED` as **revision `0xC2`, dated 2017-11-16**.
-`0xC2 != 0xD6`, and `2017-11-16 < 2019-10-03`. **This is no longer an
-inference from timing — both sides of the divergence are now directly
-read, not guessed:** the BIOS embeds `0xC2`; the machine currently runs
-`0xD6`; the live revision is newer than anything this BIOS image could
-have loaded at power-on, so it is confirmed to be a later, OS-supplied
-override layered on top of F22e's own firmware-loaded microcode, not a
-reflection of it.
+Власний вбудований мікрокод F22e для саме цієї сигнатури CPU тепер
+`STATIC-CONFIRMED` як **ревізія `0xC2`, дата 2017-11-16**.
+`0xC2 != 0xD6`, і `2017-11-16 < 2019-10-03`. **Це вже не висновок із
+хронології — обидві сторони розбіжності тепер прочитані напряму, не
+вгадані:** BIOS вбудовує `0xC2`; машина зараз виконує `0xD6`; жива
+ревізія новіша за все, що цей образ BIOS міг би завантажити при
+увімкненні живлення, тож підтверджено, що це пізніша накладка, надана
+ОС, поверх власного завантаженого прошивкою мікрокоду F22e, а не
+відображення його.
 
-## 7. ACPI/SMBIOS table presence — STATIC-CONFIRMED (presence only, not parsed)
+## 7. Присутність таблиць ACPI/SMBIOS — STATIC-CONFIRMED (лише присутність, не розібрано)
 
-None of the standard ACPI/SMBIOS signatures (`RSD PTR `, `FACP`,
-`APIC`, `MCFG`, `DMAR`, `HPET`, `DSDT`, `SSDT`, `_SM_`, `_SM3_`) appear
-in the raw compressed image (expected — they live inside compressed FV
-sections). All of them appear inside the main decompressed DXE volume:
-`RSD PTR ` ×1, `FACP` ×23, `APIC` ×5, `MCFG` ×1, `DMAR` ×2, `HPET` ×2,
-`DSDT` ×19, `SSDT` ×64, `_SM_`/`_SM3_` ×2 each. The high `SSDT` count
-(64) is consistent with per-platform-configuration ACPI template
-variants compiled into one shared image, not one single active table —
-which SSDT(s) actually get built into the live ACPI namespace depends
-on runtime platform detection this pass did not follow. Presence is
-confirmed; content (AML disassembly, which SSDTs are actually live) is
-`not-yet-verified` — real further work, not attempted here.
+Жодна зі стандартних сигнатур ACPI/SMBIOS (`RSD PTR `, `FACP`, `APIC`,
+`MCFG`, `DMAR`, `HPET`, `DSDT`, `SSDT`, `_SM_`, `_SM3_`) не з'являється
+в сирому стиснутому образі (очікувано — вони живуть усередині
+стиснутих секцій FV). Усі вони з'являються всередині головного
+розпакованого тому DXE: `RSD PTR ` ×1, `FACP` ×23, `APIC` ×5, `MCFG`
+×1, `DMAR` ×2, `HPET` ×2, `DSDT` ×19, `SSDT` ×64, `_SM_`/`_SM3_` ×2
+кожен. Висока кількість `SSDT` (64) узгоджується з варіантами
+ACPI-шаблонів для кожної конфігурації платформи, скомпільованими в
+один спільний образ, не однією активною таблицею — які саме SSDT
+реально збираються в живий простір імен ACPI, залежить від визначення
+платформи під час виконання, чого цей прохід не відстежував.
+Присутність підтверджена; вміст (розбирання AML, які SSDT реально
+живі) — `not-yet-verified` — реальна подальша робота, тут не
+виконана.
 
-## What remains from the owner's ten-step program
+## Що лишається з десятикрокової програми власника
 
-Steps 1, 4, 5 are now solidly done; 2/3 done at the structural-inventory
-level (not a full per-module hash/dependency-expression walk); 6 is
-presence-only for NVRAM; 7 is presence-only for ACPI/SMBIOS. Steps 8-10
-— live post-boot register/MSR/memory-map state, a minimal UEFI probe,
-and the actual handoff-boundary experiment — are also now done, in
-`probe/handoff-probe.c` and `probe/exit-boundary-probe.c` (see
-`probe/README.md`); the sibling `wsm` repo's `research/handoff-state.md`
-keeps only the conclusions this implies for WSM's own design.
+Кроки 1, 4, 5 тепер твердо виконані; 2/3 виконані на рівні
+структурної інвентаризації (не повний обхід хешів/виразів залежностей
+по кожному модулю); 6 — лише присутність для NVRAM; 7 — лише
+присутність для ACPI/SMBIOS. Кроки 8-10 — живий стан
+регістрів/MSR/карти пам'яті після завантаження, мінімальна проба UEFI
+та власне експеримент межі handoff — теж тепер виконані, у
+`probe/handoff-probe.c` і `probe/exit-boundary-probe.c` (див.
+`probe/README.md`); сусідній репозиторій `wsm`, файл
+`research/handoff-state.md`, зберігає лише висновки, які це передбачає
+для власного дизайну WSM.
+
+---
+
+## F22e — flash region map, FIT, and the real microcode path (English, secondary)
+
+Direct structural analysis: real flash region map (Descriptor/ME/BIOS,
+sizes sum to exactly 8 MiB); 12 Firmware Volumes / 780 files inventoried;
+the real FIT table found and parsed, locating the owner's exact
+microcode (revision `0xC2`, dated 2017-11-16), cross-confirmed by an
+independent named FFS container; ACPI/SMBIOS table presence confirmed.
+The divergence between this BIOS's own embedded microcode and the live
+machine's currently-loaded revision is now confirmed on both sides, not
+inferred. See the Ukrainian version above for full detail.
