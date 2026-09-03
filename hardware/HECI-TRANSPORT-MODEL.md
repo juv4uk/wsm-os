@@ -321,17 +321,69 @@ kernel-модуль) — кожен із цих шляхів змінює сам
 механізми спостереження, якими можна скористатись через самого
 власника ресурсу, не створюючи другого читача BAR0.
 
-### Tracepoints
+### Tracepoints — виправлення власної помилки цієї сесії
 
-```bash
-grep -rl "TRACE_EVENT\|trace_mei" /usr/src/linux-headers-7.1.5+kali-common/include/trace/events/ 2>/dev/null
+Перша перевірка шукала в неправильному місці
+(`include/trace/events/mei.h`, за аналогією з іншими підсистемами) і
+дала хибний негативний результат — записано тут чесно, не приховано.
+Реальний файл лежить локально в самому каталозі драйвера, не в
+загальному `include/trace/events/`:
+
+```text
+drivers/misc/mei/mei-trace.c   -- CREATE_TRACE_POINTS, EXPORT_TRACEPOINT_SYMBOL
+drivers/misc/mei/mei-trace.h   -- самі TRACE_EVENT-визначення
 ```
 
-**Результат: нуль збігів.** У ядрі 7.1.5+kali-amd64 немає файлу
-`include/trace/events/mei.h` — на відміну від, наприклад, драйверів
-блочних пристроїв чи мережі, MEI-підсистема **не має власних
-ftrace-tracepoints** у цьому дереві. `SOURCE-CONFIRMED` (перевірено
-проти локальних заголовків ядра, не переказ).
+**Три tracepoints, `SOURCE-CONFIRMED` (mainline `torvalds/linux`),
+і `LIVE-CONFIRMED` активні прямо в цьому запущеному ядрі:**
+
+```c
+TRACE_EVENT(mei_reg_read,
+    TP_PROTO(const struct device *dev, const char *reg, u32 offs, u32 val),
+    ...
+    TP_printk("[%s] read %s:[%#x] = %#x")
+);
+TRACE_EVENT(mei_reg_write, /* та сама сигнатура */
+    TP_printk("[%s] write %s[%#x] = %#x")
+);
+TRACE_EVENT(mei_pci_cfg_read, ...);
+```
+
+**Точки виклику в `hw-me.c` — саме наші цільові регістри:**
+
+```text
+mei_me_mecsr_read()  -> trace_mei_reg_read(dev, "ME_CSR_HA", ME_CSR_HA, reg)
+mei_hcsr_read()       -> trace_mei_reg_read(dev, "H_CSR", H_CSR, reg)
+mei_hcsr_write()      -> trace_mei_reg_write(dev, "H_CSR", H_CSR, reg)
+```
+
+Тобто кожне читання `ME_CSR_HA` і кожне читання/запис `H_CSR`, які й
+так реально відбуваються під час нормальної роботи `mei_me`
+(наприклад, під час нашого власного `fw-version` запиту), **вже
+несуть повне ім'я регістру, офсет і фактичне значення** через цей
+канал — саме те, що Місія 3B шукала.
+
+**Перевірено напряму, що це не лише теоретично існує в коді, а живе
+прямо зараз у завантаженому модулі цього ядра:**
+
+```bash
+grep -i "mei_reg_read\|mei_reg_write" /proc/kallsyms
+```
+
+```text
+D __tracepoint_mei_reg_read      [mei]
+D __tracepoint_mei_reg_write     [mei]
+D __tracepoint_mei_pci_cfg_read  [mei]
+```
+
+`LIVE-CONFIRMED`, не `SOURCE-CONFIRMED` лише за кодом — символи
+реально присутні в `/proc/kallsyms` цього самого, зараз запущеного
+`mei`/`mei_me`. **Жодне інше ядро не потрібне.**
+
+`/sys/kernel/debug/tracing/events/mei/` (стандартна ftrace-точка
+входу для увімкнення) поки недоступна без root — той самий,
+уже знайомий цій сесії патерн прав доступу до `debugfs`, не ознака
+відсутності.
 
 ### dynamic_debug (`cl_dbg`/`dev_dbg`)
 
@@ -361,17 +413,19 @@ transport-рівня.
 
 | Механізм | Чи існує | Чи дає H_CSR/ME_CSR_HA |
 |---|---|---|
-| ftrace tracepoints (`trace/events/mei.h`) | **немає** у цьому ядрі | — |
+| ftrace tracepoints (`drivers/misc/mei/mei-trace.h`) | **є, `LIVE-CONFIRMED` активні в поточному ядрі** | **так — ім'я регістру, офсет, фактичне значення** |
 | `dynamic_debug` (`cl_dbg`/`dev_dbg`) | **є**, готовий до вмикання | лише протокольні переходи, не сирі регістри |
 | `debugfs` (`meclients`/`active`/`devstate`) | **є**, уже використано | декодований HBM-стан, не сирі регістри |
 
-**Жоден із наявних, уже вбудованих механізмів не дає прямого сирого
-значення `H_CSR`/`ME_CSR_HA` через легітимного власника.** Це теж
-реальний результат — саме тому, а не через відсутність спроби. Питання,
-чи вартий окремого дозволу власника мінімальний instrumentation-патч
-(наприклад, `dev_dbg`-виклик, що додатково друкує ці два регістри
-в уже наявних точках `mei_write_message()`/`mei_me_irq_thread_handler()`),
-лишається відкритим і навмисно не вирішено в цьому документі.
+**Найкращий інструмент уже знайдено, готовий, ніякого нового ядра чи
+коду не потрібно.** Питання інструментального патча (яке лишалось
+відкритим у першій версії цього розділу) закрите саме тим, що
+`mei-trace.h` вже й так друкує `H_CSR`/`ME_CSR_HA` разом зі значенням
+у власних, давно наявних точках виклику драйвера (`mei_hcsr_read()`,
+`mei_hcsr_write()`, `mei_me_mecsr_read()`). Наступний практичний крок
+— увімкнути ці events через ftrace (потребує root) під час звичайного
+запуску `mei-observer`, щоб зіставити задокументований у Місії 2
+ланцюжок викликів із фактичними значеннями регістрів наживо.
 
 ## Критерій завершення місії
 
