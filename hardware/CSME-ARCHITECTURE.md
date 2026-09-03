@@ -346,12 +346,105 @@ group=0x05/cmd=0x01, вимагає відкритого Manufacturing Mode) т�
 git (`?? probe/mei-hmrfpo-*.c` на момент цього запису) — рішення про
 коміт лишається за власником.
 
+## Доповнення: живий стан фіч ME (PTT/PSR) через `FWCAPS_GET_RULE(rule_id=0x20)` (2026-09-03)
+
+`probe/mei-fw-feature-state.c` (коміт `c755884`) — той самий провідний
+канал MKHI, що й `mei-fw-caps.c`, той самий wire-command
+(`group=0x03/cmd=0x02`), але з `rule_id=0x20`
+(`ME_FEATURE_STATE_RULE_ID`, з `intelblocks/cse.h` coreboot) замість
+`0`. Різне питання, та сама командна сім'я: `mei-fw-caps.c` читає
+статичні можливості SKU ("на що ця SKU здатна"), ця проба читає живий
+runtime-стан фіч ("що реально увімкнено прямо зараз").
+
+**Реальний, `LIVE-CONFIRMED` результат:**
+
+```
+raw fw_runtime_status = 0x11101140
+```
+
+- **PTT (Platform Trust Technology / fTPM) — вимкнено** (біт 29 = 0).
+- **PSR (Platform Service Record) — вимкнено** (біт 5 = 0).
+- **Шість реально увімкнених бітів без публічної назви**: 6, 8, 12,
+  20, 24, 28. Перевірено напряму весь `intelblocks/cse.h` coreboot —
+  названо в ньому лише `PTT` і `PSR`, решта цього 32-бітного
+  `fw_runtime_status` публічно не задокументована взагалі (внутрішня
+  специфікація Intel). Свідомо не вигадано їм назв — записано як
+  реальний, live факт без інтерпретації.
+
+## Доповнення: чому пряме читання ME-регіону через host SPI не вдалося — три реальні глухі кути (2026-09-03)
+
+Спроба відповісти на питання з попереднього розділу ("що можна дістати
+з цього каналу") практичним читанням самого ME-регіону через
+`flashrom` наштовхнулась на три окремі, кожна по-своєму остаточні,
+перешкоди — записано чесно, щоб наступна сесія не витрачала час на
+повторну спробу тих самих шляхів:
+
+1. **`flashrom -p linux_mei` — такого програматора не існує.**
+   Перевірено напряму: `flashrom v1.6.0` на цій машині видає повний
+   список валідних програматорів при помилці, і серед них немає
+   `linux_mei`; так само немає його в жодній версії офіційної
+   документації `flashrom` (аж до dev-гілки). MEI-специфічного шляху
+   читання flash у `flashrom` просто не існує — це була власна
+   помилкова пропозиція цієї сесії, не факт про залізо.
+
+2. **`flashrom -p internal --ifd` — блокується `CONFIG_STRICT_DEVMEM`.**
+   Реальна помилка: `pcilib: Cannot map ecam region: Operation not
+   permitted`. Причина перевірена напряму на живому ядрі
+   (`7.1.5+kali-amd64`):
+   ```
+   CONFIG_STRICT_DEVMEM=y
+   CONFIG_IO_STRICT_DEVMEM=y
+   ```
+   Це той самий бар'єр, що вже раніше зупинив `intelmetool` (згадано в
+   заголовку `probe/mei-fw-version.c`) — `internal`-програматор
+   потребує прямого мапування фізичної пам'яті (`/dev/mem`) для
+   ECAM-простору PCI-конфігурації, а це ядро це забороняє поза білим
+   списком "безпечних" ділянок.
+
+3. **`flashrom -p linux_mtd` (через окремий kernel-драйвер
+   `intel-spi`, який обходить `/dev/mem`) — генетично не підтримує цю
+   плату.** Модуля `intel_spi` немає в цьому ядрі взагалі
+   (`modinfo`/`/lib/modules/` порожньо). Але навіть якби його зібрати
+   з нуля під це ядро — перевірено напряму по джерелу mainline-ядра
+   (`drivers/spi/spi-intel-pci.c`): таблиця підтримуваних PCI ID цього
+   драйвера **не містить `0x8086:0xa144`** (наш реальний `H170
+   Chipset LPC/eSPI Controller`) — драйвер підтримує лише Broxton
+   (`bxt_info`) і Cannon Lake (`cnl_info`), новіші покоління PCH, не
+   Sunrise Point/100-series (наше, Skylake-ери). Це не "складно
+   зібрати" — це архітектурно непідтримуване покоління чипсета для
+   цього драйвера, підтверджено джерелом, а не здогадкою.
+
+**Правдоподібна, але не остаточно підтверджена нитка, що стикує це з
+розділом про HMRFPO вище**: публічні джерела (`flashrom`'s власна
+документація) розходяться в тому, чи має ефект `HMRFPO_ENABLE`,
+надісланий **після** `End-of-Post` (EOP) — а EOP на цій машині вже
+відбувся під час звичайного завантаження BIOS, задовго до того, як
+`mei-hmrfpo-enable` було запущено з живого Linux. Тобто MKHI-рівень
+(`HMRFPO_GET_STATUS` = ENABLED) міг реально змінитись, а реальне
+блокування на рівні самого SPI-контролера (яке залежить від
+FRAP-регістра, встановленого до/на EOP) — ні. Це `predicted`
+пояснення, не `source-confirmed` до кінця — публічна документація тут
+сама неповна.
+
+**Три реальні варіанти, що лишаються, кожен зі своєю ціною — не
+вирішено, чекає рішення власника:**
+1. Перезавантаження з `iomem=relaxed` у cmdline ядра — послаблює
+   `STRICT_DEVMEM` системно (тимчасово, до наступного ребута).
+2. Компіляція `intel-spi`-подібного драйвера з нуля під це покоління
+   PCH — реальна, не розпочата робота з нуля (не форк наявного
+   драйвера, бо той генетично не підтримує цей чипсет).
+3. Зовнішній SPI-програматор (кліпса CH341A на сам чип) — обходить
+   хостову ОС повністю, стандартний шлях `me_cleaner`-гайдів.
+
 ## Що лишається невідкритим
 
 Вміст самих 2 093 056 байтів ME-регіону цього образу (`STATIC-CONFIRMED`
 за межами/офсетом у `FIT-AND-STRUCTURE-ANALYSIS.md`, `not-yet-verified`
 всередині) — розбір власне прошивки ME цієї плати не входив у цей
-прохід і лишається окремою, явно не розпочатою роботою.
+прохід і лишається окремою, явно не розпочатою роботою. Три реальні
+шляхи до живого читання цього регіону з хоста досліджено й записано
+вище (жоден поки не спрацював); зовнішній програматор або
+`iomem=relaxed` лишаються відкритими, не випробуваними напрямами.
 
 ---
 
@@ -406,3 +499,18 @@ found only two with a bound host kernel driver right now (`mei_hdcp`,
 confirmed `HMRFPO_ENABLE` live-succeeded, giving the host write access
 to the ME flash region until the next ME reset. See the Ukrainian
 section above for the full client table and command references.
+
+A same-day follow-up read the live ME feature-runtime-state bitmask
+(`FWCAPS_GET_RULE` with `rule_id=0x20`): PTT (fTPM) and PSR are both
+off; six other set bits (6, 8, 12, 20, 24, 28) have no public name in
+coreboot's own header and are recorded as-is, not guessed. A practical
+attempt to actually read the ME region via `flashrom` hit three
+separate, source-confirmed dead ends: `linux_mei` does not exist as a
+flashrom programmer; the `internal` programmer is blocked by this
+kernel's `CONFIG_STRICT_DEVMEM`/`CONFIG_IO_STRICT_DEVMEM`; and the
+`intel-spi` kernel driver's own PCI ID table (checked directly against
+mainline `drivers/spi/spi-intel-pci.c`) does not cover this board's
+Sunrise Point/100-series PCH at all. See the Ukrainian sections above
+for the full reasoning and the three real, untried options that remain
+(`iomem=relaxed` reboot, a from-scratch driver, or an external SPI
+programmer).
