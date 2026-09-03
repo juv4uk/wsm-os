@@ -43,3 +43,12 @@ RESPONSE_BYTES(13): 03820000000000000440111031
 MKHI_HEADER: group_id=0x03 command=0x02 result=0x00
 INTERPRETATION: mefwcaps_sku raw=0x31101140 manageability_bit2=0 pavp_bit12=1
 STATUS: LIVE-CONFIRMED
+
+=== 2026-09-03T21:20:21+0300 query=fw-version ===
+PROVENANCE: coreboot util/intelmetool/src/me.h GEN_GET_FW_VERSION; local clone: same struct reused verbatim from mei-fw-version.c
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(4): ff020000
+RESPONSE_BYTES(28): ff82000008000b00610d320008000b00610d320008000b00610d3200
+MKHI_HEADER: group_id=0xff command=0x02 result=0x00
+INTERPRETATION: code=11.8.50.3425 recovery=11.8.50.3425 fitc=11.8.50.3425
+STATUS: LIVE-CONFIRMED
