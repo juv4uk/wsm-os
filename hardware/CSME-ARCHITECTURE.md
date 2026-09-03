@@ -296,6 +296,56 @@ power states") — тобто `ExitBootServices()`, який діє винятк
 `docs/POWER-ON-SEQUENCE.md` (Фаза 1): межа, яку `wsm-os` реально
 перетнула — це межа UEFI-хоста, не межа всієї платформи.
 
+## Доповнення: AMT підтверджено відсутнім трьома незалежними методами; HMRFPO_ENABLE реально спрацював на живому залізі (2026-09-03)
+
+**AMT — три незалежні методи, усі узгоджені.** Оригінальний факт
+("Standard Manageability: No" з ARK Intel, вище) тепер додатково
+`LIVE-CONFIRMED` не одним, а трьома різними шляхами:
+
+1. `FWCAPS_GET_RULE` (`probe/mei-fw-caps.c`) — прапорець `Manageability=OFF`.
+2. Пряма спроба MEI connect-handshake до UUID самого AMT-клієнта
+   (`12f80028-b4b7-4b2d-aca8-46e0ff65814c`, з реального джерела fwupd)
+   — `probe/mei-amt-probe.c` (коміт `39addf0`) — відмова з `ENOTTY`.
+3. Пряма енумерація списку клієнтів, які FW репортує через HBM,
+   незалежно від шляху `connect`-ioctl — `probe/mei-client-enum-probe.sh`
+   (коміт `be370f3`) — AMT UUID відсутній серед 13 реальних клієнтів
+   цього чипа.
+
+Метод 3 додатково закрив конкретну альтернативну гіпотезу: перевірено
+напряму по джерелу ядра Linux (`drivers/misc/mei/main.c`), що `ENOTTY`
+з методу 2 повертається з двох різних гілок коду — "UUID не знайдено у
+FW" і "клієнт є, але fixed-address заборонено драйвером" — і лише пряма
+енумерація (метод 3) розрізняє їх. На цій машині `FA: 1` (fixed-address
+підтримується драйвером), і AMT просто відсутній у самому списку —
+перша гілка, не друга.
+
+**Живий список 13 MEI-клієнтів цього чипа, з реальною прив'язкою
+драйверів** (`/sys/bus/mei/devices/*/uevent`, `lsmod`):
+
+| UUID (перші 8 симв.) | Ідентифіковано як | Драйвер прив'язаний зараз? |
+|---|---|---|
+| `8e6a6715` | MKHI (генеричний керівний канал, той самий, яким користуються всі проби цього репо) | немає окремого host-драйвера (userspace read/write напряму) |
+| `b638ab7e` | `MEI_UUID_HDCP` (source-confirmed, `drivers/misc/mei/bus-fixup.c`) | так — `mei_hdcp` |
+| `fbf6fcf1` | `MEI_UUID_PAVP`/PXP (source-confirmed, той самий файл) | так — `mei_pxp` |
+| `55213584` | `MEI_UUID_MKHIF_FIX` (протокольний quirk, не сервіс) | немає (bus-fixup застосовується інлайн, не окремий модуль) |
+| решта 9 | не ідентифіковано (пошук дав лише непідтверджені здогадки — свідомо не записано як факт) | немає жодного драйвера, `DRIVER=` відсутній в `uevent` |
+
+Практичний висновок: реальна поверхня, якою ME могла б штовхати дані
+в бік ОС на цій машині прямо зараз, звужена до двох вузьких, реально
+прив'язаних каналів (`mei_hdcp`, `mei_pxp`, обидва з `0` активних
+користувачів на момент перевірки) — не загальний контроль над ОС.
+
+**HMRFPO_ENABLE — реально спрацював, `LIVE-CONFIRMED`.**
+`probe/mei-hmrfpo-status.c` (read-only) спершу показав `status=0`
+(DISABLED — хост не має доступу до ME-регіону прошивки). Після
+запуску `probe/mei-hmrfpo-enable.c` (надсилає `HMRFPO_ENABLE`,
+group=0x05/cmd=0x01, вимагає відкритого Manufacturing Mode) той самий
+`mei-hmrfpo-status` повторно показав `status=2` (ENABLED) — хост
+реально отримав доступ на запис до ME-регіону прошивки, до наступного
+скидання ME/перезавантаження. Обидва файли поки **не закомічені** в
+git (`?? probe/mei-hmrfpo-*.c` на момент цього запису) — рішення про
+коміт лишається за власником.
+
 ## Що лишається невідкритим
 
 Вміст самих 2 093 056 байтів ME-регіону цього образу (`STATIC-CONFIRMED`
@@ -346,3 +396,13 @@ datasheet, and a Tiger-Lake PCH datasheet) rather than Skylake/H170 —
 flagged as a citation-accuracy issue, not a refutation of the underlying
 claims, which are independently supported elsewhere. See the Ukrainian
 version above for full detail and exact quotes.
+
+A later 2026-09-03 follow-up (same session) closed out the AMT question
+with three independent, mutually-agreeing methods (capability-flag read,
+direct connect-handshake, and direct FW client-list enumeration via
+debugfs), enumerated all 13 live MEI clients on this exact chip and
+found only two with a bound host kernel driver right now (`mei_hdcp`,
+`mei_pxp` — both HDCP/protected-video, not general OS control), and
+confirmed `HMRFPO_ENABLE` live-succeeded, giving the host write access
+to the ME flash region until the next ME reset. See the Ukrainian
+section above for the full client table and command references.
