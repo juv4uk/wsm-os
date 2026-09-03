@@ -14,3 +14,4 @@ WSM-PROBE-LOG*.TXT
 /mei-fw-version
 /mei-hmrfpo-enable
 /mei-hmrfpo-status
+/mei-fw-feature-state
