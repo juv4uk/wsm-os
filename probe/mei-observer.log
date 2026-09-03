@@ -1,0 +1,45 @@
+
+=== 2026-09-03T20:25:58+0300 query=fw-version ===
+PROVENANCE: coreboot util/intelmetool/src/me.h GEN_GET_FW_VERSION; local clone: same struct reused verbatim from mei-fw-version.c
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(4): ff020000
+RESPONSE_BYTES(28): ff82000008000b00610d320008000b00610d320008000b00610d3200
+MKHI_HEADER: group_id=0xff command=0x02 result=0x00
+INTERPRETATION: code=11.8.50.3425 recovery=11.8.50.3425 fitc=11.8.50.3425
+STATUS: LIVE-CONFIRMED
+
+=== 2026-09-03T20:25:58+0300 query=fwcaps-sku ===
+PROVENANCE: coreboot util/intelmetool/src/me.c mkhi_get_fwcaps(); local clone: same struct reused verbatim from mei-fw-caps.c
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(8): 0302000000000000
+RESPONSE_BYTES(13): 03820000000000000440111031
+MKHI_HEADER: group_id=0x03 command=0x02 result=0x00
+INTERPRETATION: mefwcaps_sku raw=0x31101140 manageability_bit2=0 pavp_bit13=0
+STATUS: LIVE-CONFIRMED
+
+=== 2026-09-03T20:25:58+0300 query=fw-feature-state ===
+PROVENANCE: coreboot src/soc/intel/common/block/cse/cse.c cse_get_fw_feature_state(), local clone /home/user/GitHub/coreboot
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(8): 0302000020000000
+RESPONSE_BYTES(13): 03820000200000000440111011
+MKHI_HEADER: group_id=0x03 command=0x02 result=0x00
+INTERPRETATION: fw_runtime_status raw=0x11101140 PTT(bit29)=0 PSR(bit5)=0
+STATUS: LIVE-CONFIRMED
+
+=== 2026-09-03T20:25:58+0300 query=hmrfpo-status ===
+PROVENANCE: coreboot src/soc/intel/common/block/cse/cse.c cse_hmrfpo_get_status(); read-only, local clone
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(4): 05030000
+RESPONSE_BYTES(8): 0583000002000000
+MKHI_HEADER: group_id=0x05 command=0x03 result=0x00
+INTERPRETATION: status=2 (ENABLED)
+STATUS: LIVE-CONFIRMED
+
+=== 2026-09-03T20:26:32+0300 query=fwcaps-sku ===
+PROVENANCE: coreboot util/intelmetool/src/me.c mkhi_get_fwcaps(); local clone: same struct reused verbatim from mei-fw-caps.c
+CONNECT: protocol_version=1 max_msg_length=2048
+REQUEST_BYTES(8): 0302000000000000
+RESPONSE_BYTES(13): 03820000000000000440111031
+MKHI_HEADER: group_id=0x03 command=0x02 result=0x00
+INTERPRETATION: mefwcaps_sku raw=0x31101140 manageability_bit2=0 pavp_bit12=1
+STATUS: LIVE-CONFIRMED

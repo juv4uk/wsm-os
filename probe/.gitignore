@@ -17,3 +17,4 @@ WSM-PROBE-LOG*.TXT
 /mei-fw-feature-state
 /mei-cse-boot-partition-info
 /mei-cse-boot-perf
+/mei-observer
