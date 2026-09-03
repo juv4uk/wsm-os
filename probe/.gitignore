@@ -6,3 +6,11 @@
 *_run1.log
 run_capture.log
 WSM-PROBE-LOG*.TXT
+
+# скомпільовані MEI-проби (gcc file.c -o file, без розширення) --
+# джерело трекається, бінарник ні
+/mei-amt-probe
+/mei-fw-caps
+/mei-fw-version
+/mei-hmrfpo-enable
+/mei-hmrfpo-status
