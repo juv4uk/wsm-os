@@ -250,6 +250,129 @@ enumeration, не окремий сервіс і не окремий модул�
   цього шляху сам" — окрема, ще не розпочата місія, свідомо не змішана
   із цим документом.
 
+## Місія 3: DIRECT PARALLEL MMIO OBSERVATION — `SOURCE-CONFIRMED BLOCKED`
+
+**Гіпотеза, яку перевіряли**: чи можна пасивно прочитати `H_CSR`
+(`BAR0+0x4`) і `ME_CSR_HA` (`BAR0+0xC`) через `/dev/mem`, поки
+`mei_me` живий і володіє пристроєм, не втручаючись у його роботу.
+
+**Результат — зламано на етапі аудиту джерела, до будь-якої спроби
+запуску:**
+
+```text
+mei_me_probe()
+   ↓
+pcim_iomap_regions()
+   ↓
+pci_request_region()
+   ↓
+BAR0 = IORESOURCE_BUSY
+   ↓
+CONFIG_IO_STRICT_DEVMEM=y   (підтверджено на цьому ядрі раніше цієї сесії)
+   ↓
+resource_is_exclusive()     (kernel/resource.c)
+   ↓
+iomem_is_exclusive()
+   ↓
+devmem_is_allowed() = false
+```
+
+```text
+status: SOURCE-CONFIRMED BLOCKED
+
+reason:
+active mei_me owns BAR0 through pci_request_region;
+with CONFIG_IO_STRICT_DEVMEM=y an IORESOURCE_BUSY iomem region is
+treated as exclusive by the /dev/mem permission path;
+therefore an independent /dev/mem reader is not an allowed
+observation mechanism while mei_me owns the device.
+
+LIVE test: NOT RUN
+reason: would add no architectural information unless it contradicts
+the source-derived prediction.
+```
+
+**Точне формулювання, навмисно, не інше**:
+
+```text
+НЕ: hardware prevents reading BAR0
+
+А: current Linux ownership/access policy prevents an independent
+   /dev/mem reader from reading BAR0 while mei_me owns the resource
+```
+
+Це не апаратне обмеження — це навмисна модель володіння ресурсом у
+самому ядрі Linux. Емпіричний запуск (`sudo devmem...` → `EPERM`) не
+додав би нового архітектурного знання понад те, що вже встановлено
+джерелом — тому свідомо **не запущено**. Реальна нова знахідка тут —
+сам механізм (`IORESOURCE_BUSY` → `CONFIG_IO_STRICT_DEVMEM` →
+`exclusive`), не факт відмови.
+
+**Свідомо не обходжено** (`iomem=relaxed`, unbind `mei_me`, власний
+kernel-модуль) — кожен із цих шляхів змінює саму умову експерименту
+(живий `mei_me` + незалежний пасивний спостерігач) на геть інше
+питання ("що станеться, коли ми самі володіємо HECI") — окрема,
+свідомо не розпочата тут фаза.
+
+## Місія 3B: спостереження через самого законного власника (`mei_me`), без нового коду
+
+Перш ніж думати про будь-який instrumentation-патч чи модуль,
+перевірено (без написання коду), чи Linux MEI вже має вбудовані
+механізми спостереження, якими можна скористатись через самого
+власника ресурсу, не створюючи другого читача BAR0.
+
+### Tracepoints
+
+```bash
+grep -rl "TRACE_EVENT\|trace_mei" /usr/src/linux-headers-7.1.5+kali-common/include/trace/events/ 2>/dev/null
+```
+
+**Результат: нуль збігів.** У ядрі 7.1.5+kali-amd64 немає файлу
+`include/trace/events/mei.h` — на відміну від, наприклад, драйверів
+блочних пристроїв чи мережі, MEI-підсистема **не має власних
+ftrace-tracepoints** у цьому дереві. `SOURCE-CONFIRMED` (перевірено
+проти локальних заголовків ядра, не переказ).
+
+### dynamic_debug (`cl_dbg`/`dev_dbg`)
+
+Джерело (`main.c`, `client.c` — уже цитоване раніше в цьому документі)
+рясно використовує `cl_dbg(dev, cl, ...)` — це macro-обгортка над
+`dev_dbg()`, яка при увімкненому `CONFIG_DYNAMIC_DEBUG` стає
+керованою через `/sys/kernel/debug/dynamic_debug/control` **без
+перекомпіляції й без нового коду**. Перевірено напряму на цьому ядрі
+(`/boot/config-7.1.5+kali-amd64`): `CONFIG_DYNAMIC_DEBUG=y`,
+`CONFIG_DYNAMIC_DEBUG_CORE=y` — обидва увімкнені, механізм реально
+доступний, не лише теоретично існує в коді. Приклади вже процитованих
+викликів у цьому самому документі: `"Cannot connect to FW Client
+UUID..."`, `"sending flow control"`, `"is not connected"` — жоден із
+них не друкує сирі значення `H_CSR`/`ME_CSR_HA` безпосередньо, але
+рівень деталізації самого протоколу (connect/flow-control/disconnect
+переходи) став би видимим у `dmesg` без жодного нового спостерігача.
+
+### debugfs (`meclients`/`active`/`devstate`/`allow_fixed_address`)
+
+Уже використано раніше цієї сесії (`hardware/MEI-COMMUNICATION-MAP.md`).
+Жоден із чотирьох файлів `debugfs.c` (перевірено раніше, `SOURCE-CONFIRMED`)
+не дає сирого дампу `H_CSR`/`ME_CSR_HA` — `devstate` показує
+декодований HBM-стан (`hbm features`, `pg`, `pxp`), не регістри
+transport-рівня.
+
+### Підсумок Місії 3B (перша частина — розвідка без коду)
+
+| Механізм | Чи існує | Чи дає H_CSR/ME_CSR_HA |
+|---|---|---|
+| ftrace tracepoints (`trace/events/mei.h`) | **немає** у цьому ядрі | — |
+| `dynamic_debug` (`cl_dbg`/`dev_dbg`) | **є**, готовий до вмикання | лише протокольні переходи, не сирі регістри |
+| `debugfs` (`meclients`/`active`/`devstate`) | **є**, уже використано | декодований HBM-стан, не сирі регістри |
+
+**Жоден із наявних, уже вбудованих механізмів не дає прямого сирого
+значення `H_CSR`/`ME_CSR_HA` через легітимного власника.** Це теж
+реальний результат — саме тому, а не через відсутність спроби. Питання,
+чи вартий окремого дозволу власника мінімальний instrumentation-патч
+(наприклад, `dev_dbg`-виклик, що додатково друкує ці два регістри
+в уже наявних точках `mei_write_message()`/`mei_me_irq_thread_handler()`),
+лишається відкритим і навмисно не вирішено в цьому документі.
+
 ## Критерій завершення місії
 
 Шлях `fw-version` розкладено настільки далеко, наскільки дозволяють
