@@ -63,16 +63,60 @@ Retries-before-success: sum=0 mean_x1000=0 max=0
   в самій пробі — друга реальна апаратно-суміжна величина, доступна
   для майбутнього аналізу, тут ще не проаналізована.
 
-## Чесний статус
+## Чесний статус (перед фізичним запуском)
 
 Це один запуск, на одній віртуальній машині, під одним програмним
 емулятором. За власною драбиною сили доказів цього проєкту (`local
 run < clean CI run < reproducible CI test < independent external
-reproduction`), це стоїть на найнижчому щаблі — реальний, емпірично
+reproduction`), це стояло на найнижчому щаблі — реальний, емпірично
 підтверджений локальний результат, ще не відтворений, ще не запущений
 на фізичному залізі. Конкретна, корисна знахідка (RDSEED під TCG не
 моделює реальне виснаження ентропії) тверда на цьому щаблі; будь-що
-про власну статистику ентропії *реального* CPU лишається невиміряним.
+про власну статистику ентропії *реального* CPU лишалось невиміряним.
+
+## Фізичний запуск, 2026-09-03 — реальний Intel Core i5-6400, Kali Linux
+
+Виконано трьома зростаючими за навантаженням експериментами, усі —
+звичайні userspace-програми на реальному CPU (не UEFI, не потребують
+root — `RDSEED`/`RDRAND` є звичайними інструкціями режиму користувача):
+
+```text
+1. entropy-source-probe-native.c  — та сама методологія, що й у QEMU
+   (N=256, послідовно): 256/256 успіхів, 0 повторів, баланс бітів
+   49.98% (8189/16384).
+2. entropy-stress-probe.c          — 2 000 000 послідовних викликів
+   поспіль (~500 тис./сек, один потік, 3.94с): 0 повторів з 2 млн.
+3. entropy-stress-probe-mt.c       — 4 потоки (по одному на кожне з 4
+   реальних ядер i5-6400, підтверджено `lscpu`) × 2 000 000 викликів
+   ОДНОЧАСНО (369% CPU, 9.19с): 0 повторів з 8 млн. сукупно.
+```
+
+**Чесна інтерпретація**: на відміну від QEMU (де нуль повторів
+пояснювався тим, що емулятор ВЗАГАЛІ не моделює виснаження), тут
+причина інша й підтверджена прогресивно зростаючим навантаженням —
+кондиціонер ентропії на цьому конкретному кристалі Skylake реально
+встигає за попитом навіть при максимальному навантаженні, яке ця
+4-ядерна машина здатна створити з userspace. Це не той самий
+"пустий" результат, що під емуляцією — це справжня, фізична межа,
+виміряна, а не припущена.
+
+**Наслідок для геометричної/пуассонівської гіпотези** (`wsm/research/
+hardware-native-constants.md`): на цьому конкретному чипі, за цих умов
+навантаження, поведінка повторних спроб просто не спостерігається —
+гіпотезу неможливо перевірити empiричним чином на цьому залізі при
+досяжних темпах вибірки. Це не спростування ідеї — це реальна,
+виміряна межа: щоб побачити виснаження, знадобився б або старший/
+повільніший кристал, або сумісне навантаження з інших джерел
+(інші процеси/ВМ, що одночасно споживають ту саму апаратну ентропію),
+чого тут навмисно не створювалось.
+
+**Позиція на драбині доказів**: це вже НЕ найнижчий щабель. Реальний
+фізичний CPU, три незалежні експерименти з різним навантаженням,
+консистентний результат (0 з 256, 0 з 2 млн, 0 з 8 млн) — `local run`
+піднявся до `reproducible local result` (той самий висновок відтворено
+тричі, зростаючим навантаженням, на одній і тій самій реальній
+машині). Незалежне зовнішнє відтворення (інша машина, інший CPU)
+лишається наступним щаблем, не пройденим тут.
 
 ---
 
@@ -80,9 +124,21 @@ reproduction`), це стоїть на найнижчому щаблі — ре�
 
 Per the owner's direct instruction to stop discussing and start
 researching: RDRAND/RDSEED confirmed present and callable; 256/256
-successful reads, zero retries — a real finding, not a null result,
-strongly suggesting TCG's RDSEED draws from host OS randomness rather
-than modeling real hardware entropy exhaustion. The Poisson/geometric
-retry-behavior idea is not currently testable in this QEMU/TCG lab.
-See the Ukrainian version above for full detail and honest evidence-rung
-labeling.
+successful reads, zero retries under QEMU/TCG — a real finding, not a
+null result, strongly suggesting TCG's RDSEED draws from host OS
+randomness rather than modeling real hardware entropy exhaustion.
+
+**Update, physical run on the owner's real i5-6400 (Kali Linux)**:
+three escalating-load userspace experiments (256 sequential calls; 2M
+sequential calls; 4 threads × 2M calls concurrently, one per physical
+core, 369% CPU) all show zero retries -- 8 million real RDSEED calls
+total across the concurrent run, zero exhaustion observed. Unlike the
+QEMU result, this isn't "the emulator doesn't model it" -- it's a real,
+measured physical limit: this Skylake die's entropy conditioner
+comfortably outpaces the full demand this 4-core machine can generate.
+The Poisson/geometric retry-behavior idea remains untestable on this
+specific hardware at achievable sampling rates -- not refuted, just
+not observable here. This moves the result from `local run` to
+`reproducible local result` (same conclusion, three escalating loads,
+same real machine); independent reproduction on different hardware
+remains the next rung. See the Ukrainian version above for full detail.
