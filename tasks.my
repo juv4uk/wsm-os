@@ -14,4 +14,12 @@
     (description . "Keep the QEMU/OVMF harness (scripts/qemu-uefi-selftest.sh, docs/QEMU-SETUP.md) ready to reproduce whatever MINIX-1 needs verified on real vs emulated hardware, once that work defines a concrete need -- do not build speculative HECI transport code here ahead of that need, per the repo's own explicit rule.")
     (done . ())
   ))
+
+  ("WSM-OS-BLOCK-MIRROR-NOTE" . (
+    (priority . 4.0)
+    (capabilities . (documentation filesystem))
+    (origin . ecosystem)
+    (context . "Found 2026-09-04 (WSM-FS-CROSS-REPO-HARMONIZATION, ecosystem session): the FS harmonization plan names 'wsm-os-block' (opaque bounded bytes owner) -- that crate actually lives in wsm-os-lisp (crates/wsm-os-block/), NOT here, despite this repo's name being the closer match. Mirror of WSM-OS-BLOCK-OWNERSHIP-RESOLUTION, recorded in wsm-os-lisp's own tasks.my.")
+    (description . "If the owner decides wsm-os-block should migrate here (breaking wsm-os-lisp non-continuation for this one crate), this is where it would land -- this entry exists so that decision, once made, has an obvious landing task on this side too. Do not migrate anything speculatively.")
+    (done . ())))
 )))
