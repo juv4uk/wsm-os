@@ -15,3 +15,5 @@ WSM-PROBE-LOG*.TXT
 /mei-hmrfpo-enable
 /mei-hmrfpo-status
 /mei-fw-feature-state
+/mei-cse-boot-partition-info
+/mei-cse-boot-perf

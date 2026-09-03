@@ -346,6 +346,62 @@ group=0x05/cmd=0x01, вимагає відкритого Manufacturing Mode) т�
 git (`?? probe/mei-hmrfpo-*.c` на момент цього запису) — рішення про
 коміт лишається за власником.
 
+## Доповнення: доступ до `/dev/mei0` без root (2026-09-03)
+
+До цього моменту кожна проба цієї сесії (сім штук) працювала лише
+через `sudo` — `/dev/mei0` за замовчуванням `crw------- root:root`
+(підтверджено напряму: `getfacl` порожній, жодного `udev`-правила для
+`mei` в системі не було). Це змінено явною, свідомою дією, не сталося
+"само собою":
+
+```bash
+sudo groupadd -f mei
+sudo usermod -aG mei user
+echo 'SUBSYSTEM=="mei", GROUP="mei", MODE="0660"' | sudo tee /etc/udev/rules.d/60-mei.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Результат — `crw-rw---- root:mei` — підтверджено `LIVE-CONFIRMED`
+реальним запуском проби (`mei-hmrfpo-status`) без `sudo` через `sg mei
+-c "..."` (обгортка потрібна для вже запущених процесів/шеллів, які
+стартували до зміни членства в групі — нове членство діє лише в нових
+сесіях логіну).
+
+**Чесно про наслідок, записано прямо, не замовчено**: після цієї зміни
+**будь-який процес** під обліковим записом `user` на цій постійно
+ввімкненій машині може відкривати `/dev/mei0` без пароля — це реальне
+розширення поверхні доступу до ME, а не лише зручність для агента.
+
+## Доповнення: `MKHI_GROUP_ID_BUP_COMMON` (0xf0) не відповідає на цьому ME взагалі — `LIVE-CONFIRMED` негативний результат (2026-09-03)
+
+Дві проби, `probe/mei-cse-boot-partition-info.c`
+(`GET_BOOT_PARTITION_INFO`, cmd `0x1c`) і `probe/mei-cse-boot-perf.c`
+(`GET_BOOT_PERF_DATA`, cmd `0x08`) — обидві з групи `0xf0`
+(`MKHI_GROUP_ID_BUP_COMMON`), структури взяті напряму з **локального**
+клону `coreboot` (`/home/user/GitHub/coreboot`, не з мережі —
+власна помилка цієї сесії щодо цього вже виправлена за зауваженням
+власника).
+
+**Реальний результат, обидві команди**: `connect` і `write` проходять
+успішно (`ioctl` і `write()` не повертають помилки), але **відповідь
+ніколи не приходить** — `read()` зависає нескінченно, підтверджено
+через `timeout 8` (код виходу `124` в обох випадках). Це не помилка
+MKHI (`result != 0` не приходить взагалі — самого заголовка відповіді
+немає), а справжня, симетрична тиша на рівні прошивки для всієї групи.
+
+**Висновок**: `CSE Lite` (RO/RW-редундантність партицій ME,
+концепція, якій належить `GET_BOOT_PARTITION_INFO`) і телеметрія
+завантаження (`GET_BOOT_PERF_DATA`) — обидві, найімовірніше, фічі
+новіших поколінь Intel CSME, яких немає на цьому ME 11.x/Skylake.
+Симетричність результату на двох незалежних підкомандах тієї самої
+групи — сильніший доказ, ніж один негативний результат: уся група
+`0xf0` не реалізована на цьому чипі, не лише одна команда.
+
+**Практичний урок, записаний для майбутніх сесій**: будь-яку нову,
+ще не перевірену MKHI-команду запускати лише через `timeout`, а не
+напряму — мовчазне зависання на `read()`, а не помилка, виявилось
+реальним, повторюваним режимом відмови на цьому залізі.
+
 ## Доповнення: живий стан фіч ME (PTT/PSR) через `FWCAPS_GET_RULE(rule_id=0x20)` (2026-09-03)
 
 `probe/mei-fw-feature-state.c` (коміт `c755884`) — той самий провідний
@@ -514,3 +570,15 @@ Sunrise Point/100-series PCH at all. See the Ukrainian sections above
 for the full reasoning and the three real, untried options that remain
 (`iomem=relaxed` reboot, a from-scratch driver, or an external SPI
 programmer).
+
+A same-day change added a `udev` rule + `mei` group granting
+passwordless access to `/dev/mei0` (previously `root:root` 0600 for
+every probe run this session) -- a deliberate, recorded widening of
+local access, not an incidental default. A follow-up test of
+`MKHI_GROUP_ID_BUP_COMMON` (0xf0) found the whole group silently
+unanswered on this ME 11.x/Skylake chip: both
+`GET_BOOT_PARTITION_INFO` and `GET_BOOT_PERF_DATA` connect and write
+cleanly but the read blocks forever (confirmed via `timeout 8`,
+exit 124 both times) -- CSE Lite boot-partition redundancy and boot
+telemetry are almost certainly newer-generation-only features. See the
+Ukrainian sections above for the exact commands and reasoning.
