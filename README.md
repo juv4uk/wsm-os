@@ -37,8 +37,19 @@ x86 має ADD
 залізі" — а не для того, щоб вирости в операційну систему раніше, ніж
 `wsm` про це попросить.
 
----
+## Current evidence (x86 arithmetic milestones)
 
+| Milestone | Scope | CML commit | Evidence class |
+|---|---|---|---|
+| M4 | FIRST-QEMU-PARITY: UEFI boot, `(cons (quote A) (quote B))` -> `(A . B)` | -- | QEMU-BOOT-PARITY (GH run 33280152276) |
+| M5A | Fixnum preflight, `cond` branching, truth/identity | a52b690 | oracle->CML->hosted/QEMU witness |
+| M5B | Checked fixnum arithmetic (inline overflow) | b526cd6 | oracle->CML->hosted/QEMU witness |
+| M5C | 100k-deep self-tail-call, bounded native stack | dd5382f | oracle->CML->hosted/QEMU witness |
+| M5D | Definition capsule: stable definition ID, source digest, contract revisions, byte-identical regeneration | -- | QEMU (runs 33281082120, 33280964422) |
+
+*Per Audit 2026-08-31: M5A/B/C have committed oracle->CML->hosted/QEMU witnesses. No additional unclosed non-closure obligation found; general closure gated by closure admission audit.*
+
+---
 ## WSM-OS (English)
 
 The hardware-execution counterpart to `wsm`. Carries no inherited
