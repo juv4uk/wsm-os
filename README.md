@@ -64,3 +64,7 @@ imports a hardware concept as semantics just because `x86` happens to
 have it. Everything in this repo exists to answer "can a given
 capability be reached and observed on real hardware," not to grow into
 an operating system ahead of `wsm` asking for one.
+
+## Ліцензія
+
+Цей твір поширюється під [ВОЛЬНІСТЮ](LICENSE) — простим словом про свободу творити, пам'ятаючи про волю іншого.
