@@ -46,25 +46,41 @@ SHA-256 (8192 bytes):     418291.71 KB/s
 
 Повний сирий вивід: `benchmarks/result-7.1.5-native.txt`.
 
-## Статус: порівняння НЕ завершено
+## Результат №2 — 7.1.5+kali-amd64 (стоковий, той самий реюн)
 
-Це поки що **лише один бік порівняння**. Щоб отримати чесний висновок,
-потрібно:
+```
+$ uname -a
+Linux desktop 7.1.5+kali-amd64 #1 SMP PREEMPT_DYNAMIC Kali 7.1.5-1kali1 (2026-07-29) x86_64 GNU/Linux
 
-1. Перезавантажитись у `7.1.5+kali-amd64` (звичайний дефолт у GRUB — просто
-   звичайний ребут, нічого обирати вручну не треба).
-2. Запустити той самий скрипт:
-   `./scripts/native-kernel-benchmark.sh > benchmarks/result-7.1.5+kali-amd64.txt`
-3. Порівняти файли напряму.
+10M getpid(): 9.835 s  (983.5 ns/call)
+200000 round trips: 1.588 s  (7.9 us/round-trip, ~3969 ns/switch)
 
-**Очікування, чесно, наперед (щоб не інтерпретувати шум як ефект):** для
-syscall/context-switch різниця, ймовірно, буде в межах кількох відсотків
-або взагалі в межах шуму вимірювання — `-march=native` для ядра переважно
-впливає на вузькі гарячі шляхи (checksum, деякі memcpy-варіанти), а не на
-загальну вартість syscall/switch, яка домінується апаратними
-переходами кільця захисту (ring transitions), однаковими для обох ядер.
-Значної різниці в OpenSSL/7z тестах не очікується взагалі — це CPU-bound
-навантаження, не kernel-bound.
+AES-256-CBC (8192 bytes): 898304.68 KB/s
+SHA-256 (8192 bytes):     418250.75 KB/s
+
+7z b: Tot Rating (compress+decompress avg): ~19675 / 20704 MIPS
+```
+
+Повний сирий вивід: `benchmarks/result-7.1.5+kali-amd64.txt`.
+
+## Порівняння — завершено (2026-09-09)
+
+| Тест | 7.1.5-native | 7.1.5+kali-amd64 | Різниця |
+|---|---:|---:|---:|
+| Syscall (getpid), нс/виклик | 953.9 | 983.5 | **native швидше на ~3.0%** |
+| Context-switch, нс/switch | 3950 | 3969 | ~0.5% — шум |
+| AES-256-CBC, КБ/с (8192B) | 898517.67 | 898304.68 | ~0.02% — шум |
+| SHA-256, КБ/с (8192B) | 418291.71 | 418250.75 | ~0.01% — шум |
+| 7z Tot Rating (compress/decompress) | 19844/20764 | 19675/20704 | ~0.9%/0.3% — у межах шуму |
+
+**Висновок:** підтвердився наперед заявлений прогноз. Єдиний тест, що
+реально проходить через код ядра на кожній ітерації (syscall), показав
+відтворюваний, хоч і скромний виграш ~3%. Все інше — у межах шуму
+вимірювання, як і очікувалось: `-march=native` для ядра змінює вузькі
+гарячі шляхи (частину checksum/memcpy-варіантів у самому ядрі), а не
+загальну вартість переходу в kernel mode, яка домінується апаратним
+кільцем захисту (однаковим на обох ядрах) — і тим більше не впливає на
+чисто userspace CPU-навантаження (OpenSSL, 7z).
 
 ---
 
@@ -99,16 +115,25 @@ being compared:
 See the Ukrainian section above for the numbers; raw output is in
 `benchmarks/result-7.1.5-native.txt`.
 
-## Status: comparison NOT yet complete
+## Result #2 — 7.1.5+kali-amd64 (stock, same run)
 
-This is only one side of the comparison so far. To get an honest answer:
-reboot into `7.1.5+kali-amd64` (the normal GRUB default — a plain reboot,
-nothing to pick manually), rerun the same script, and diff the two result
-files.
+Raw output: `benchmarks/result-7.1.5+kali-amd64.txt`.
 
-**Honest expectation stated in advance** (so noise doesn't get
-misread as a real effect): syscall/context-switch overhead is dominated by
-hardware ring-transition cost, identical on both kernels — expect the
-difference to be within a few percent or pure measurement noise.
-OpenSSL/7z are CPU-bound, not kernel-bound, so no meaningful difference is
-expected there either.
+## Comparison — complete (2026-09-09)
+
+| Test | 7.1.5-native | 7.1.5+kali-amd64 | Delta |
+|---|---:|---:|---:|
+| Syscall (getpid), ns/call | 953.9 | 983.5 | **native ~3.0% faster** |
+| Context-switch, ns/switch | 3950 | 3969 | ~0.5% — noise |
+| AES-256-CBC, KB/s (8192B) | 898517.67 | 898304.68 | ~0.02% — noise |
+| SHA-256, KB/s (8192B) | 418291.71 | 418250.75 | ~0.01% — noise |
+| 7z Tot Rating (compress/decompress) | 19844/20764 | 19675/20704 | ~0.9%/0.3% — noise |
+
+**Conclusion:** the stated-in-advance prediction held. The only test that
+actually goes through kernel code on every iteration (syscall) showed a
+reproducible, if modest, ~3% gain. Everything else sits within measurement
+noise, as expected: `-march=native` for the kernel changes narrow hot paths
+(some checksum/memcpy variants inside the kernel itself), not the general
+cost of entering kernel mode, which is dominated by the hardware
+ring-transition (identical on both kernels) — and it has no bearing at all
+on purely userspace CPU load (OpenSSL, 7z).

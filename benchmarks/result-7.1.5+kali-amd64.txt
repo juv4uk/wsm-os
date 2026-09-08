@@ -1,0 +1,43 @@
+== ENVIRONMENT ==
+2026-09-09T00:11:34+03:00
+Linux desktop 7.1.5+kali-amd64 #1 SMP PREEMPT_DYNAMIC Kali 7.1.5-1kali1 (2026-07-29) x86_64 GNU/Linux
+
+== [KERNEL-SENSITIVE] SYSCALL OVERHEAD (10M getpid() calls) ==
+10M getpid(): 9.835 s  (983.5 ns/call)
+
+== [KERNEL-SENSITIVE] CONTEXT-SWITCH OVERHEAD (pipe ping-pong, 200k round trips) ==
+200000 round trips: 1.588 s  (7.9 us/round-trip, ~3969 ns/switch)
+
+== [CPU BASELINE, not kernel-sensitive] OPENSSL SPEED (AES-256-CBC, SHA-256) ==
+compiler: gcc -fPIC -pthread -m64 -Wa,--noexecstack -Wall -fzero-call-used-regs=used-gpr -Wa,--noexecstack -g -O2 -Werror=implicit-function-declaration -ffile-prefix-map=/build/reproducible-path/openssl-3.6.3=. -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSL_BUILDING_OPENSSL -DZLIB -DZSTD -DNDEBUG -Wdate-time -D_FORTIFY_SOURCE=2
+CPUINFO: OPENSSL_ia32cap=0x7ffaf3bfffebffff:0x00000000029c67af:0x00000000bc002e00:0x0000000000000000:0x0000000000000000
+The 'numbers' are in 1000s of bytes per second processed.
+type             16 bytes     64 bytes    256 bytes   1024 bytes   8192 bytes  16384 bytes
+AES-256-CBC     690731.64k   880846.23k   894948.86k   899082.92k   898304.68k   896013.65k
+compiler: gcc -fPIC -pthread -m64 -Wa,--noexecstack -Wall -fzero-call-used-regs=used-gpr -Wa,--noexecstack -g -O2 -Werror=implicit-function-declaration -ffile-prefix-map=/build/reproducible-path/openssl-3.6.3=. -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSL_BUILDING_OPENSSL -DZLIB -DZSTD -DNDEBUG -Wdate-time -D_FORTIFY_SOURCE=2
+CPUINFO: OPENSSL_ia32cap=0x7ffaf3bfffebffff:0x00000000029c67af:0x00000000bc002e00:0x0000000000000000:0x0000000000000000
+The 'numbers' are in 1000s of bytes per second processed.
+type             16 bytes     64 bytes    256 bytes   1024 bytes   8192 bytes  16384 bytes
+sha256           49970.47k   130250.62k   275507.03k   375250.60k   418250.75k   421030.57k
+
+== [CPU BASELINE, not kernel-sensitive] 7-ZIP BUILT-IN BENCHMARK ==
+(506E3)  (LP)
+
+1T CPU Freq (MHz):  3162  3258  3180  3263  3249  3265  3258
+2T CPU Freq (MHz): 200% 3197   200% 3218  
+4T CPU Freq (MHz): 374% 2901   369% 2837  
+
+RAM size:   15941 MB (LP),  # CPU hardware threads:   4
+RAM usage:    889 MB (LP),  # Benchmark threads:      4
+
+                       Compressing  |                  Decompressing
+Dict     Speed Usage    R/U Rating  |      Speed Usage    R/U Rating
+         KiB/s     %   MIPS   MIPS  |      KiB/s     %   MIPS   MIPS
+
+22:      18148   324   5456  17655  |     242932   383   5412  20725
+23:      17486   337   5290  17816  |     240141   384   5413  20779
+24:      17553   340   5553  18874  |     234521   381   5396  20581
+25:      17728   347   5830  20241  |     232941   385   5381  20732
+----------------------------------  | ------------------------------
+Avr:     17729   337   5532  18647  |     237634   383   5401  20704
+Tot:             360   5466  19675
